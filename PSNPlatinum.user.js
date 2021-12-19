@@ -176,7 +176,7 @@ class Settings {
 
         /** Modal Settings window */
         const settingsWindow = newElement('div', { style: `width:100%; height:100%; z-index:2000000000; display:none; position:fixed; top:0; left:0; overflow:auto; background-color:rgba(0,0,0,0.4); padding: 200px;` },
-            newElement('div', { id: 'settings-outer', style: `background-color:white; height:250px;` },
+            newElement('div', { id: 'settings-outer', style: `background-color:white; height:250px; max-width:1000px; margin:auto;` },
                 newElement('div', { id: 'settings-inner', style: `position:relative; padding: 10px 20px 20px; height:100%;` },
                     newElement('h1', { style: `color:blue; text-align:center; font-weight:bold; ` }, `${GM_info.script.name} Settings`),
                     (function generateCheckboxes(bools) {
