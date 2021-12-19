@@ -4,7 +4,10 @@
 // @namespace    psnp.platinum
 // @version      2.50
 // @description  Script to make PSNP great again.
+// @downloadURL  https://github.com/T-h0re/PSNPlatinum/raw/main/PSNPlatinum.user.js
+// @updateURL    https://github.com/T-h0re/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @match        https://psnprofiles.com/*
+// @require      https://github.com/T-h0re/PSNPlatinum/raw/main/TrophyFunctions.js
 // ==/UserScript==
 
 /// <reference path="./../TrophyFunctions.js"/>     // Enables IntelliSense
