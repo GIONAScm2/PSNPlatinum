@@ -2,7 +2,7 @@
 // @name         PSNPlatinum
 // @author       GIONAScm2
 // @namespace    psnp.platinum
-// @version      2.50
+// @version      2.51
 // @description  Script to make PSNP great again.
 // @downloadURL  https://github.com/T-h0re/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/T-h0re/PSNPlatinum/raw/main/PSNPlatinum.user.js
@@ -103,7 +103,7 @@ class Settings {
                 if (!this.played(id)) return false;
                 /** @type {GameWithProgress} */
                 const g = this.get(id);
-                return Settings.bools.platify ? g.isPlatted : g.percent === 100;
+                return Settings.bools.platify.val ? g.isPlatted : g.percent === 100;
             }
             /** @param {Game[]} games */
             mark(...games) {
@@ -117,7 +117,6 @@ class Settings {
                     else if (playedOrOwned) game.el.querySelectorAll('td:not([rowspan])').forEach((x) => x.style.backgroundColor = Settings.colors.playedOrOwned); // Blue
                     else game.el.querySelectorAll('td:not([rowspan])').forEach((x) => x.style.backgroundColor = ''); // Reset
                 });
-
             }
             /** @param {Game[]} games */
             appendOwnershipIcon(...games) {
@@ -504,7 +503,7 @@ async function main() {
                             }
                         }
                     }
-                    console.log(`${i}/${profile.numPages} pages parsed`);
+                    // console.log(`${i}/${profile.numPages} pages parsed`);
                 }
                 Settings.save();
                 console.log(`Parsed ${parsed} games: ${numNew} new, ${numUpdated} updated, ${parsed - numNew - numUpdated} unchanged. (${Settings.games.size} in cache)`);
