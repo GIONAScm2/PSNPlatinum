@@ -645,16 +645,15 @@ async function main() {
         // Normalize game title capitalization
         h3.style.textTransform = "none";
 
-
-
         // Clicking a Recent Player's name will redirect to their list for the game, sorted by date (delay prevents a conflict with Husky's script)
         setTimeout(() => {
             list.recentPlayers.forEach((el) => {
-                const playerName = el.querySelector('.small-title').innerHTML;
-                const newPath = pathList[0] + '/' + pathList[1] + '/' + pathList[2] + '/' + playerName + '?order=date';
-                el.querySelector('.small-title').setAttribute('href', newPath);
+                let path = location.pathname.split('/');
+                path[3] = el.querySelector('.small-title').textContent.trim() + '?order=date';
+                path = 'https://psnprofiles.com' + path.join('/');
+                el.querySelector('.small-title').setAttribute('href', path);
             })
-        }, 300);
+        }, 800);
 
         // Highly specific feature that only I care about (pasting trophies into OneNote a particular way)
         if (Settings.psnID === 'GIONAScm2') {
