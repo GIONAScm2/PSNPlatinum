@@ -659,8 +659,7 @@ async function main() {
         // Highly specific feature that only I care about (pasting trophies into OneNote a particular way)
         if (Settings.psnID === 'GIONAScm2') {
             /** Container for copying rich text, since innerHTML is required to apply text formatting */
-            const rich = newElement('div', {})
-                , nodes = Trophy.getNodes({ omitDLC: true });
+            const rich = newElement('div', {});
             trophies.forEach((trophy, i) => {
                 const checkbox = newElement('input', { "type": "checkbox", "style": `margin-left:5px;`, "class": "copyCheck" });
                 checkbox.addEventListener('change', async (e) => {
@@ -676,7 +675,7 @@ async function main() {
                         }
                     }
                 });
-                nodes[i].querySelector('td > a.title').after(checkbox);
+                trophies[i].el.querySelector('td > a.title')?.after(checkbox);
             })
         }
         monitorGames();
