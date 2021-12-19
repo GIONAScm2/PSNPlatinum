@@ -2,7 +2,7 @@
 // @name         PSNPlatinum
 // @author       GIONAScm2
 // @namespace    psnp.platinum
-// @version      2.51
+// @version      2.52
 // @description  Script to make PSNP great again.
 // @downloadURL  https://github.com/T-h0re/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/T-h0re/PSNPlatinum/raw/main/PSNPlatinum.user.js
@@ -624,20 +624,14 @@ async function main() {
                                                             GAMES(?q=)
     ******************************************************************************************************************************/
     else if (viewingGames) {
-        games = Game.getNodes();
+        games = Game.getNodes().map(g => new Game(g));
+
+        // When viewing PS3 games, filter out cross-platform games
+        let sp = new URLSearchParams(window.location.search);
+        if (sp.get('platform') === 'ps3')
+            games.forEach(game => { if (game.numPlatforms > 1) game.el.remove(); });
 
         monitorGames(1500);
-
-        games.forEach((g) => {
-            const game = new Game(g);
-
-            // When viewing PS3 games, filter out cross-platform games
-            if (_url.includes('platform=ps3')) {
-                if (game.platformArray.length > 1) game.el.remove();
-                if (Settings.bools.platify.val && !game.hasPlat) game.el.remove();
-            }
-        });
-
     }
     /******************************************************************************************************************************
                                                         TROPHY LIST
@@ -651,7 +645,7 @@ async function main() {
         // Normalize game title capitalization
         h3.style.textTransform = "none";
 
-        monitorGames();
+
 
         // Clicking a Recent Player's name will redirect to their list for the game, sorted by date (delay prevents a conflict with Husky's script)
         setTimeout(() => {
@@ -685,7 +679,7 @@ async function main() {
                 nodes[i].querySelector('td > a.title').after(checkbox);
             })
         }
-
+        monitorGames();
     }
     /******************************************************************************************************************************
                                                         TROPHY

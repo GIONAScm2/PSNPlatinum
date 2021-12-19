@@ -192,6 +192,8 @@ class Game {
     get id() { return this.#id; }
     get stack() { return this.#stack; }
     get platforms() { return this.#platforms; }
+    get numPlatforms() { return Object.values(this.#platforms).filter(b => b === true).length; }
+
 
     /** Returns NodeList of games from Profile(?q=), Games(?q=), Series, and TrophyList ("Other Platforms and Regions"). */
     static getNodes(doc = document) {
