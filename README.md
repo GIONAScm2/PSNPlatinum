@@ -46,3 +46,7 @@ ___
 #### SERIES PAGES:
 - Creates a header that shows your aggregate progress towards completing all the series' games
 - [X] **Platify:** If checked, nonplats will be hidden, and the completion icon-sprites will be based solely on plat count
+
+___
+## Gallery
+Go [**here**](https://imgur.com/a/Mqma4uG) to see images of the userscript in action.
