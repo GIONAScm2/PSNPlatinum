@@ -474,9 +474,10 @@ async function main() {
 
             /** Parses user's profile and caches all their games so that the data can be quickly accessed anytime. */
             static async cacheGames() {
-                window.addEventListener('beforeunload', this.#stayOnPage);
                 const profile = new PSNProfile();
                 let done = false, numUpdated = 0, numNew = 0, parsed = 0;
+                if (!Settings.games.size) window.addEventListener('beforeunload', this.#stayOnPage);
+
 
                 for (let i = 1; i <= profile.numPages && !done; i++) {
                     const doc = await fetchDoc(`https://psnprofiles.com/${Settings.psnID}?completion=all&order=last-played&pf=all&page=${i}`)
@@ -690,7 +691,6 @@ async function main() {
             path = 'https://psnprofiles.com' + path.join('/');
             el.querySelector('a.title').setAttribute('href', path);
         });
-
 
     }
     /******************************************************************************************************************************
