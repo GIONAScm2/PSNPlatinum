@@ -639,7 +639,6 @@ async function main() {
     else if (viewingTrophyList) {
         const list = new TrophyList()
             , trophies = Trophy.getTrophies({ omitDLC: false })
-            , pathList = window.location.pathname.split('/')
             , h3 = document.querySelector('#banner > div.banner-overlay > div > div.title-bar.flex.v-align > div.grow > h3');
 
         // Normalize game title capitalization
@@ -683,14 +682,16 @@ async function main() {
                                                         TROPHY
     ******************************************************************************************************************************/
     else if (viewingTrophy) {
-        const pathList = window.location.pathname.split('/');
-        const playerList = document.querySelectorAll('div.col-xs-6 tr'); // both first & latest achievers
+        const players = document.querySelectorAll('div.col-xs-6 tr'); // both first & latest achievers
 
-        for (const player of playerList) {
-            player.name = player.querySelector('a.title').innerHTML;
-            const newPath = pathList[0] + '/trophies/' + pathList[2] + '/' + player.name + '?order=date';
-            player.querySelector('a.title').setAttribute('href', newPath);
-        }
+        players.forEach(el => {
+            let path = location.pathname.split('/');
+            path[1] = 'trophies', path[3] = el.querySelector('a.title').textContent.trim();
+            path = 'https://psnprofiles.com' + path.join('/');
+            el.querySelector('a.title').setAttribute('href', path);
+        });
+
+
     }
     /******************************************************************************************************************************
                                                         100% CLUB
