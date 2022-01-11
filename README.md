@@ -22,6 +22,7 @@ ___
   - [ ] **Platify:** Makes the site more platinum-oriented, like platted games being considered completed (grey)
   - [ ] **Flagged:** Alters the UI/UX to provide a fuller experience for flagged users
   - [ ] **Ownership Icons:** Toggles the ownership icons (`+`/`-`) described above
+- Adds 'Series' tab to nav menu to quickly access PSNP's experimental Series catalog
 #### PROFILE (self):
 - Automatically caches games so that they can be marked across the site
   - The first time you visit your profile, ***all*** your games will be cached, which may take 5-10s; you will be warned if you try to leave the page during that time
