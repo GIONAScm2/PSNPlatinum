@@ -3,7 +3,7 @@ A userscript that augments [PSNP](https://psnprofiles.com/) with various QoL enh
 ___
 ## Installation/Usage
 0. Install a userscript manager browser extension (such as [Tampermonkey](https://www.tampermonkey.net/)).
-1. Click [**here**](https://github.com/T-h0re/PSNPlatinum/raw/main/PSNPlatinum.user.js) to install the script.
+1. Click [**here**](https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js) to install the script.
 2. Make sure you're signed into PSNP, otherwise the script won't work.
 
 #### Mobile Compatibility
