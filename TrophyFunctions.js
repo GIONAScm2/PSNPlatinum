@@ -1,49 +1,36 @@
 /* eslint-disable no-unused-vars */
 
-/* Breaks IntelliSense in other files */
-// const cheerio = typeof require !== 'undefined' ? require('cheerio') : null;
-
-
-
 /******************************************************************************************************************************
                                                        PSNP
 ******************************************************************************************************************************/
 /** A basic trophy. Also contains static utility functions. */
 class Trophy {
-    #name;
-    #desc;
-    #rarity;
-    #type;
-    #isCompleted;
-    #dateEarned;
-
     /** Constructs a basic Trophy (from Profile)
      * @param {HTMLTableRowElement} tr - The \<tr\> representing the trophy */
     constructor(tr) {
         // Trophy list trophies each have 7 <td>, whereas Advisor and Log trophies have >7 and require a different rarity selector.
         const standard = tr.children.length === 7;
+
         this.el = tr;
-        this.#name = tr.querySelector('td > a.title').textContent.trim();
-        this.#desc = tr.querySelector('td > br').nextSibling.textContent.trim();
-        this.#rarity = standard
+        this.name = tr.querySelector('td > a.title').textContent.trim();
+        this.desc = tr.querySelector('td > br').nextSibling.textContent.trim();
+        /** Number that uniquely identifies a trophy within a list, ranging from 1 to [number of trophies] */
+        this.id = +tr.querySelector('a.title').getAttribute('href').split('/')[3].split('-')[0];
+        this.image = tr.querySelector('img').getAttribute('src');
+        this.rarity = standard
             ? +tr.querySelector('td.hover-hide span.typo-top').textContent.trim().replace('%', '')
             : +tr.querySelector('td:nth-last-of-type(2) > span > span.typo-top').textContent.trim().replace('%', '');
-        this.#type = tr.querySelector(' td > span > img[title]').getAttribute('title').trim();
-        this.#isCompleted = standard
+        this.type = tr.querySelector(' td > span > img[title]').getAttribute('title').trim();
+        /** @type {boolean} */
+        this.isCompleted = standard
             ? tr.querySelector('td:nth-of-type(3) > span > span.typo-top-date') !== null
             : tr.querySelector('td:nth-of-type(6) > span > span.typo-top-date') !== null;
-        this.#dateEarned = Trophy.parseDate(tr);
+        this.dateEarned = Trophy.parseDate(tr);
     }
 
-    get name() { return this.#name; }
-    get desc() { return this.#desc; }
-    get rarity() { return this.#rarity; }
-    get rarityString() { return this.#rarity.toFixed(2); }
+    get rarityString() { return this.rarity.toFixed(2); }
     /** Bronze, Silver, Gold, or Platinum */
-    get type() { return this.#type; }
-    get isCompleted() { return this.#isCompleted; }
     /** Trophy earn date (ms), or null if unearned */
-    get dateEarned() { return this.#dateEarned; }
     /** Point value corresponding to trophy type */
     get points() {
         let pts = 0;
@@ -94,7 +81,7 @@ class Trophy {
      * @param {HTMLTableRowElement} tr */
     static parseDate(tr) {
         let dateEarned = tr.querySelector('td > :is(span.separator.right, center)');
-        if (!dateEarned) {
+        if (!dateEarned?.querySelector('nobr')) {
             return null;
         }
 
@@ -118,35 +105,21 @@ class TrophyFromLog extends Trophy {
 
 /** Utility class containing properties and methods unique to PSNP trophy lists */
 class TrophyList {
-    #id;
+    id;
     /** @type {HTMLTableRowElement[]} */
-    #stacks = [];
+    stacks = [];
     /** @type {HTMLTableRowElement[]} */
-    #recentPlayers = [];
+    recentPlayers = [];
 
     constructor(doc = document) {
         doc.querySelectorAll('div.col-xs-4 >  div.title.flex.v-align > div.grow > h3').forEach((h3) => {
             if (h3.textContent === 'Other Platforms and Regions') {
-                this.#stacks = Array.from(h3.closest('div.title.flex.v-align').nextElementSibling.querySelectorAll('tr'));
+                this.stacks = Array.from(h3.closest('div.title.flex.v-align').nextElementSibling.querySelectorAll('tr'));
             }
             else if (h3.textContent === "Recent Players")
-                this.#recentPlayers = Array.from(h3.closest('div.title.flex.v-align').nextElementSibling.querySelectorAll('tr'));
-        })
-        // this.#id = +doc.URL.split('/')[4].split('-')[0];
-    }
-
-    get id() { return this.#id; }
-    get stacks() { return this.#stacks; }
-    get recentPlayers() { return this.#recentPlayers; }
-    /** Gets last nonzero digit of Game ID (for Nov 2021 event) */
-    get multiplier() {
-        const digits = this.id.toString().split('').map((c) => +c);
-        let digit = 0;
-        for (let i = digits.length; i > 0; i--) {
-            digit = digits.pop();
-            if (digit > 0) break;
-        }
-        return digit;
+                this.recentPlayers = Array.from(h3.closest('div.title.flex.v-align').nextElementSibling.querySelectorAll('tr'));
+        });
+        // this.id = +doc.URL.split('/')[4].split('-')[0];
     }
 }
 
@@ -154,45 +127,30 @@ class TrophyList {
 
 /** Basic PSNP game, containing only universally-present properties. */
 class Game {
-    #name;
-    #url;
-    #id;
-    #stack;
-    #platforms;
-    /** Boolean or undefined */
-    hasStacks;
-    // #image;
-
     /** @param {HTMLTableRowElement} tr - The \<tr\> representing the trophy */
     constructor(tr) {
-        const platforms = Array.from(tr.querySelectorAll('span.tag.platform')).map((tag) => tag.textContent);
-
         this.el = tr;
-        this.#name = tr.querySelector(':is(a.title, td > span > span > a)').textContent.trim();
-        this.#url = 'https://psnprofiles.com' + tr.querySelector(':is(a.title, td > span > span > a)').getAttribute('href');
-        this.#id = +tr.querySelector(':is(a.title, td > span > span > a)').getAttribute('href').split('/')[2].split('-')[0];
+        this.name = tr.querySelector(':is(a.title, td > span > span > a)').textContent.trim();
+        this.url = 'https://psnprofiles.com' + tr.querySelector(':is(a.title, td > span > span > a)').getAttribute('href');
+        this.id = +tr.querySelector(':is(a.title, td > span > span > a)').getAttribute('href').split('/')[2].split('-')[0];
         // Tests general case first (Games, Profile, and Series pages), then trophy list-specific case.
-        this.#stack = tr.querySelector('tr :is(span, td) > bullet')
+        this.stack = tr.querySelector('tr :is(span, td) > bullet')
             ? tr.querySelector(':is(span, td) > bullet').nextSibling.textContent.trim()
             : tr.querySelector('td > span.separator > span.typo-top')
                 ? tr.querySelector('td > span.separator > span.typo-top').textContent.trim()
                 : '';
         // this.image = tr.querySelector('img').getAttribute('src');
-        this.#platforms = {
-            Vita: platforms.includes('Vita'),
-            PS3: platforms.includes('PS3'),
-            PS4: platforms.includes('PS4'),
-            PS5: platforms.includes('PS5'),
-            VR: platforms.includes('VR')
+        this.platformArray = Array.from(tr.querySelectorAll('span.tag.platform')).map((tag) => tag.textContent);
+        this.platforms = {
+            Vita: this.platformArray.includes('Vita'),
+            PS3: this.platformArray.includes('PS3'),
+            PS4: this.platformArray.includes('PS4'),
+            PS5: this.platformArray.includes('PS5'),
+            VR: this.platformArray.includes('VR')
         };
     }
 
-    get name() { return this.#name; }
-    get url() { return this.#url; }
-    get id() { return this.#id; }
-    get stack() { return this.#stack; }
-    get platforms() { return this.#platforms; }
-    get numPlatforms() { return Object.values(this.#platforms).filter(b => b === true).length; }
+    get numPlatforms() { return Object.values(this.platforms).filter(b => b === true).length; }
 
 
     /** Returns NodeList of games from Profile(?q=), Games(?q=), Series, and TrophyList ("Other Platforms and Regions"). */
@@ -506,24 +464,19 @@ class Series {
     }
 }
 
-
-
 /******************************************************************************************************************************
                                                        UTILITY
 ******************************************************************************************************************************/
 /** Creates an HTML element.
  * @param {string} tagname 
- * @param {{string: string}} attributes 
- * @param  {string[] | HTMLElement[]} children
- * @returns HTMLElement
- */
-function newElement(tagname, attributes, ...children) {
+ * @param {{attr: string}} [attributes] 
+ * @param  {string[] | HTMLElement[]} [children]
+ * @returns HTMLElement */
+function newElement(tagname, attributes = {}, ...children) {
     const el = document.createElement(tagname)
-
     for (const key in attributes) {
         el.setAttribute(key, attributes[key])
     }
-
     children.forEach(child => {
         if (typeof child === 'string') {
             el.appendChild(document.createTextNode(child))
@@ -531,7 +484,6 @@ function newElement(tagname, attributes, ...children) {
             el.appendChild(child)
         }
     });
-
     return el;
 }
 
@@ -558,4 +510,49 @@ function copyToClipboard(text) {
     // eslint-disable-next-line no-undef
     var data = [new ClipboardItem({ [type]: blob })];
     navigator.clipboard.write(data)
+}
+
+/** Returns true if `x` is a pure object, otherwise false if it's a primitive/null/array/function/Map/Set. */
+function isObject(x) { return typeof x === 'object' && x !== null && !Array.isArray(x) && !(x instanceof Map) && !(x instanceof Set); }
+
+/** Assigns all mutual enumerable properties of `source` to `target`. */
+function assignSharedProps(target, source) {
+    Object.keys(source).filter(key => key in target).forEach(key => {
+        console.log(`${target[key]} = ${source[key]} (${key})`);
+
+        if (isObject(target[key]) && isObject(source[key])) {
+            assignSharedProps(target[key], source[key])
+        }
+        else target[key] = source[key];
+    });
+}
+
+/** Populates a trophy/achievement list with checkboxes that allow easy copying to 
+ *  clipboard with RTF designed specifically for OneNote. */
+class CopyCheckbox {
+    richContainer = newElement('div', {});
+
+    /** @param {Trophy[]} trophies */
+    constructor(...trophies) {
+        this.members = [];
+        this.selected = [];
+        this.addMembers(...trophies)
+    }
+
+    addMembers(...trophies) {
+        trophies.forEach(ach => {
+            const cb = ach.el.querySelector('input.copyCheck') || newElement('input', { type: 'checkbox', style: `margin-left:5px;`, class: 'copyCheck' });
+            cb.addEventListener('change', async (e) => {
+                if (e.target.checked) this.selected.push(ach);
+                else this.selected.splice(this.selected.indexOf(ach), 1);
+                this.richContainer.innerHTML = '';
+                this.selected.forEach(sel => { this.richContainer.innerHTML += `<b>${sel.name}</b>&shy;${'\v' + sel.desc}<br>`; });
+                copyToClipboard(this.richContainer.innerHTML);
+            });
+            // if (ach.el.querySelector)
+            ach.el.querySelector(':is(td > a.title, .titleAnchor)').after(cb);
+        });
+        this.members = [...this.members, ...trophies]
+    }
+
 }

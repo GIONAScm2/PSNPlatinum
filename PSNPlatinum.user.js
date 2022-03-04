@@ -2,7 +2,7 @@
 // @name         PSNPlatinum
 // @author       GIONAScm2
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
-// @version      2.54
+// @version      2.55
 // @description  Script that improves PSNProfiles with new features.
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
@@ -11,8 +11,7 @@
 // ==/UserScript==
 
 /// <reference path="./../TrophyFunctions.js"/>     // Enables IntelliSense
-/* global colorLog, fetchDoc, newElement, copyToClipboard, TrophyList, Trophy,  Game, GameWithProgress, SeriesRow, Series  */  // ESLint whitelist
-
+/* global colorLog, fetchDoc, newElement, copyToClipboard, TrophyList, Trophy,  Game, GameWithProgress, SeriesRow, Series, CopyCheckbox, */  // ESLint whitelist
 
 class Settings {
     static #key = 'PSNPlatinum_Settings';
@@ -75,16 +74,17 @@ class Settings {
     static get games() { return this.#data.games; }
     static get icons() { return this.#fa.i; }
 
+    /** If user is logged in, loads their settings profile (or creates one). */
     static init() {
-        window.history.replaceState({}, '', window.location.href.replace(/#$/, ''));
-        if (!loggedIn) return false;
-        else if (!this.load() && !viewingForum) {
+        document.querySelector('head').append(newElement('script', { src: this.#fa.url, crossorigin: 'anonymous' }));
+        if (!loggedIn) return;
+        else if (!this.load() && !viewingForumSubdomain) {
             this.#data.psnID = loggedIn.textContent.trim();
             console.log(`Created Settings data for new user '${this.psnID}'`);
         }
+        // Embed settings if load succeeded or new settings were created
         if (this.psnID) {
             this.#appendSettingsMenu();
-            return true;
         }
     }
 
@@ -135,7 +135,6 @@ class Settings {
 
     /** Saves user settings to localStorage. */
     static save() {
-        // localStorage.removeItem(this.#key);
         localStorage.setItem(this.#key, JSON.stringify(this.#data, (key, value) => {
             if (value instanceof Map) {
                 return {
@@ -159,10 +158,17 @@ class Settings {
             return value;
         });
 
-
         if (storedSettings) {
-            // Replaces default settings with stored settings; discontinued properties are discarded.
-            assignSharedProperties(Settings.#data, storedSettings);
+            // Load PSN ID
+            if ('psnID' in storedSettings) this.#data.psnID = storedSettings.psnID || '';
+            // Load saved boolean values
+            Object.entries(this.#data.bools).filter(([key]) => key in storedSettings?.bools).forEach(([key, value]) => {
+                // console.log(`${key}: ${value.val} -> ${storedSettings.bools[key].val}`);
+                value.val = storedSettings.bools[key]?.val || value.val;
+            });
+            // Load game data
+            if ('games' in storedSettings) this.#data.games = storedSettings.games;
+
             this.save();
             return true;
         }
@@ -173,7 +179,6 @@ class Settings {
 
     /** Creates and injects an interactive settings menu. */
     static #appendSettingsMenu() {
-        document.querySelector('head').append(newElement('script', { src: this.#fa.url, crossorigin: 'anonymous' }));
 
         /** Modal Settings window */
         const settingsWindow = newElement('div', { style: `width:100%; height:100%; z-index:2000000000; display:none; position:fixed; top:0; left:0; overflow:auto; background-color:rgba(0,0,0,0.4); padding: 200px;` },
@@ -216,9 +221,9 @@ class Settings {
         document.body.appendChild(settingsWindow);
 
         // Adding Settings button to dropdown:
-        const btnSettings = newElement('li', { class: 'ipsMenu_item' }, newElement('a', { id: 'settingsbtn', href: '#' }, 'PSNPlatinum ', this.icons.settings()));
+        const btnSettings = newElement('li', { class: 'ipsMenu_item' }, newElement('a', { id: 'settingsbtn', href: 'javascript:void(0);' }, 'PSNPlatinum ', this.icons.settings()));
         btnSettings.querySelector('#settingsbtn').onclick = () => { settingsWindow.style.display = 'block' }
-        const anchor = viewingForum
+        const anchor = viewingForumSubdomain
             ? null //document.querySelector('#elUserLink_menu > li.ipsMenu_sep')  // No need to read user settings from forums just yet
             : document.querySelectorAll('ul.dropdown-menu.right li.divider')[1];
         anchor?.before(btnSettings);
@@ -350,39 +355,35 @@ class PSNProfile {
     /** Parses another user's profile and shows only the games that you don't own. */
     static async envy() {
         this.remove();
-        const profile = new PSNProfile()
-            , gameContainer = document.querySelector('#content :is(#gamesTable, #search-results) > tbody');
+        const profile = new PSNProfile();
+        const gameContainer = document.querySelector('#content :is(#gamesTable, #search-results) > tbody');
 
         // Prepping the DOM
         window.addEventListener('scroll', function (e) { e.stopPropagation(); }, true);
         document.querySelector('#load-more')?.remove();
         Game.getNodes().forEach(g => g.remove());
 
+        // Check for filters/params
+        let sp = new URLSearchParams(location.search);
+        sp = {
+            completion: sp.get('completion') || 'all',
+            order: sp.get('order') || 'last-played',
+            pf: sp.get('pf') || 'all'
+        };
+
         for (let i = 1; i <= profile.numPages; i++) {
-            const doc = await fetchDoc(`https://psnprofiles.com/${profile.psnID}?completion=all&order=last-played&pf=all&page=${i}`)
+            const url = `https://psnprofiles.com/${profile.psnID}?completion=${sp.completion}&order=${sp.order}&pf=${sp.pf}&page=${i}`;
+            const doc = await fetchDoc(url);
             let gameNodes = Game.getNodes(doc)
             for (let j = 0; j < gameNodes.length; j++) {
                 const game = new GameWithProgress(gameNodes[j]);
                 if (!Settings.games.has(game.id)) gameContainer.appendChild(game.el);
             }
+            monitorGames();
         }
     }
 }
 
-
-
-/** Returns true if `x` is an object, otherwise false if it's a primitive/null/array/function/Map/Set. */
-function isObject(x) { return typeof x === 'object' && x !== null && !Array.isArray(x) && !(x instanceof Map) && !(x instanceof Set); }
-
-/** Assigns all mutual enumerable properties of `source` to `target`  */
-function assignSharedProperties(target, source) {
-    Object.keys(source).filter(key => key in target).forEach(key => {
-        if (isObject(target[key]) && isObject(source[key])) {
-            assignSharedProperties(target[key], source[key])
-        }
-        else target[key] = source[key];
-    });
-}
 
 function searchBarEnhancer(searchBar) {
     setTimeout(() => {
@@ -532,6 +533,7 @@ function constructFastest() {
  * @param {number} ms */
 function monitorGames(ms) {
     let games = Game.getNodes().map(g => new Game(g));
+    console.log('found: ' + games.length);
     Settings.games.mark(...games);
     Settings.games.appendOwnershipIcon(...games);
     if (ms) setTimeout(() => { monitorGames(ms) }, ms);
@@ -564,20 +566,21 @@ async function loadAll() {
                                                         START OF SCRIPT
 ******************************************************************************************************************************/
 var loggedIn = document.querySelector(':is(a.dropdown-toggle.cf > span, #elUserLink)'),
-    viewingForum = location.hostname.split('.')[0] === 'forum',
-    viewingAnyThread = viewingForum && location.pathname.split('/')[1] === 'topic',
+    viewingForumSubdomain = location.hostname.split('.')[0] === 'forum',
+    viewingAnyThread = viewingForumSubdomain && location.pathname.split('/')[1] === 'topic',
     viewingSubforum = location.pathname.split('/')[1] === 'forum',
     viewingAnyProfile = document.querySelector('div.user-bar > div.avatar') && location.href.split('/').length === 4,
     games;
 
 (async () => {
     const start = performance.now();
-    if (Settings.init()) await main();
+    Settings.init();
+    await main();
     colorLog(`**********END OF DEBUGGING (${Math.round(performance.now() - start)}ms)**********`, 'blue');
 })();
 
 async function main() {
-    colorLog(`${GM_info.script.name} (v${GM_info.script.version}) is running (PSN: '${Settings.psnID}')`, 'green');
+    colorLog(`${GM_info.script.name} (v${GM_info.script.version}) is running ` + Settings.psnID ? `(PSN: '${Settings.psnID}')` : `in Limited Mode`, 'green');
 
 
     // Globally improves search bars
@@ -591,7 +594,7 @@ async function main() {
     /******************************************************************************************************************************
                                                         PROFILE(?search=)
     ******************************************************************************************************************************/
-    if (viewingAnyProfile) {
+    if (viewingAnyProfile && loggedIn) {
         games = Game.getNodes().map(g => new GameWithProgress(g));
         const anchor = document.querySelector('#content div.col-xs-8 div.grow');
         const btnStackify = newElement('a', {
@@ -639,7 +642,7 @@ async function main() {
     /******************************************************************************************************************************
                                                             GAMES(?q=)
     ******************************************************************************************************************************/
-    else if (location.href.includes("/games")) {
+    else if (location.href.includes("/games") && loggedIn) {
         games = Game.getNodes().map(g => new Game(g));
 
         // When viewing PS3 games, filter out cross-platform games
@@ -683,38 +686,20 @@ async function main() {
             })
         }, 800);
 
-
-
-        // Highly specific feature that only I care about (pasting trophies into OneNote a particular way)
-        if (Settings.psnID === 'GIONAScm2') {
-            /** Container for copying rich text, since innerHTML is required to apply text formatting */
-            const rich = newElement('div', {});
-            trophies.forEach((trophy, i) => {
-                const checkbox = newElement('input', { "type": "checkbox", "style": `margin-left:5px;`, "class": "copyCheck" });
-                checkbox.addEventListener('change', async function () {
-                    const richTrophyInfo = `<b>${trophy.name}</b>&shy;${'\v' + trophy.desc}<br>`; // `&shy;` is a soft line break. It is required alongside `\v`
-                    if (this.checked) {
-                        if (document.querySelectorAll('.copyCheck:checked').length === 1) { // Clear clipboard when 1 checkbox is checked
-                            rich.innerHTML = richTrophyInfo;
-                            copyToClipboard(rich.innerHTML);
-                        }
-                        else { // If additional boxes are checked, append them to clipboard
-                            rich.innerHTML += `<br>${richTrophyInfo}`;
-                            copyToClipboard(rich.innerHTML);
-                        }
-                    }
-                });
-                trophies[i].el.querySelector('td > a.title')?.after(checkbox);
-            })
-        }
-        const cbAll = newElement('input', { "type": "checkbox", "style": `margin-left:5px;` }, 'All');
-        cbAll.addEventListener('change', function () {
-            if (this.checked) document.querySelectorAll('input.copyCheck').forEach(cb => { if (!cb.checked) cb.click(); })
-            else document.querySelectorAll('input.copyCheck').forEach(cb => { if (cb.checked) cb.click(); })
-        })
-        anchor.appendChild(cbAll)
-
         monitorGames();
+
+        // Dev feature
+        if (Settings.psnID === 'GIONAScm2') {
+            new CopyCheckbox(...trophies);
+
+            const cbAll = newElement('input', { type: 'checkbox', style: `margin-left:5px;` }, 'All');
+            cbAll.addEventListener('change', function () {
+                if (this.checked) document.querySelectorAll('input.copyCheck').forEach(cb => { if (!cb.checked) cb.click(); })
+                else document.querySelectorAll('input.copyCheck').forEach(cb => { if (cb.checked) cb.click(); })
+            });
+            anchor.appendChild(cbAll);
+        }
+
     }
     /******************************************************************************************************************************
                                                         TROPHY
@@ -722,26 +707,38 @@ async function main() {
     else if (location.href.includes("/trophy/")) {
         const players = document.querySelectorAll('div.col-xs-6 tr'); // both first & latest achievers
 
-        players.forEach(el => {
-            let path = location.pathname.split('/');
-            path[1] = 'trophies', path[3] = el.querySelector('a.title').textContent.trim();
-            path = 'https://psnprofiles.com' + path.join('/');
-            el.querySelector('a.title').setAttribute('href', path);
-        });
-
+        setTimeout(() => {
+            players.forEach(el => {
+                let path = location.pathname.split('/');
+                path[1] = 'trophies', path[3] = el.querySelector('a.title').textContent.trim() + '?order=date';
+                path = 'https://psnprofiles.com' + path.join('/');
+                el.querySelector('a.title').setAttribute('href', path);
+            });
+        }, 800);
     }
     /******************************************************************************************************************************
                                                         100% CLUB
     ******************************************************************************************************************************/
-    else if (location.href.includes("/100-club/")) {
+    else if (location.href.includes("/100-club/") && loggedIn) {
         const noAchievers = document.querySelector('div#content > div.center');
+        const players = document.querySelectorAll('.col-xs-4 tr');
 
         if (noAchievers) {
             document.querySelector('div#content').replaceChildren(constructFastest());
-        }
-        if (Settings.bools.flagged.val) {
             await insertFirstLatestFastest();
         }
+        else if (Settings.bools.flagged.val) {
+            await insertFirstLatestFastest();
+        }
+
+        setTimeout(() => {
+            players.forEach(el => {
+                let path = location.pathname.split('/');
+                path[1] = 'trophies', path[3] = el.querySelector('a.title').textContent.trim() + '?order=date';
+                path = 'https://psnprofiles.com' + path.join('/');
+                el.querySelector('a.title').setAttribute('href', path);
+            });
+        }, 800);
 
     }
     /******************************************************************************************************************************
@@ -777,7 +774,7 @@ async function main() {
     /******************************************************************************************************************************
                                                         SERIES
     ******************************************************************************************************************************/
-    else if (location.href.includes("/series/")) {
+    else if (location.href.includes("/series/") && loggedIn) {
         monitorGames();
 
         const series = new Series();
@@ -788,18 +785,51 @@ async function main() {
         series.showProgressHeader(name, Settings.bools.platify.val);
     }
     /******************************************************************************************************************************
+                                                        TROPHY GUIDE
+    ******************************************************************************************************************************/
+    else if (location.pathname.substring(0, 7) === '/guide/') {
+        const roadmapStages = document.querySelectorAll('div#roadmapSteps div[id] > div.guide');
+
+
+        // Ability to mass-copy the names and descriptions of each trophy in a given stage.
+        if (Settings.psnID === 'GIONAScm2') {
+            const rich = newElement('div', {});
+
+            roadmapStages.forEach(stage => {
+                const trophies = [...stage.querySelectorAll('div.trophy')].map(t => ({
+                    name: t.querySelector('a.title').textContent,
+                    desc: t.querySelector('span').textContent
+                }));
+                // Checkbox next to stage name to select (copy) all of its trophies
+                const cb = newElement('input', { type: 'radio', name: 'stage', style: `margin-left:5px;` });
+                cb.addEventListener('change', function () {
+                    if (this.checked) {
+                        rich.innerHTML = '';
+                        trophies.forEach(trophy => {
+                            const richTrophyInfo = `<b>${trophy.name}</b>&shy;${'\v' + trophy.desc}`;
+                            rich.innerHTML += `${richTrophyInfo}<br>`;
+                            copyToClipboard(rich.innerHTML);
+                        });
+                    }
+                });
+                stage.querySelector('h1').appendChild(cb);
+            });
+        }
+    }
+    /******************************************************************************************************************************
                                                         SUBFORUM
     ******************************************************************************************************************************/
     else if (viewingSubforum) {
-        //
+        console.log('viewing subforum');
     }
     /******************************************************************************************************************************
                                                         FORUM THREAD
     ******************************************************************************************************************************/
     else if (viewingAnyThread) {
+        console.log('viewing thread');
         const nav = document.querySelector('ul[itemscope]');
 
-        // Shortcut from game topic to game trophy list
+        // If viewing game topic, create shortcut to trophy list
         if (nav.querySelector('li:nth-child(3) > a > span')?.textContent.trim() === 'Game Forums') {
             let url = nav.querySelector('li:nth-child(5) a').getAttribute('href');
             fetchDoc(url).then(doc => {
@@ -807,7 +837,7 @@ async function main() {
                 document.querySelector('#trophylist').setAttribute('href', url);
             });
             const btnTrophyList = newElement('li', { itemprop: "itemListElement", itemscope: '' },
-                newElement('a', { id: 'trophylist', href: '#' },
+                newElement('a', { id: 'trophylist' },
                     Settings.icons.trophy(), newElement('i', { class: 'fa fa-angle-right' }))
             );
             nav.querySelector('li:nth-child(5)').before(btnTrophyList);
