@@ -2,7 +2,7 @@
 // @name         PSNPlatinum
 // @author       GIONAScm2
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
-// @version      2.55
+// @version      2.56
 // @description  Script that improves PSNProfiles with new features.
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
@@ -21,6 +21,8 @@ class Settings {
             platify: { val: false, name: 'Platify', desc: `Makes the site more platinum-oriented` },
             flagged: { val: false, name: 'Flagged', desc: `Hides the flag box from your profile and injects plat time into '100% Club'` },
             ownershipIcons: { val: true, name: 'Ownership Icons', desc: `Lets you mark any game as 'owned', coloring it blue whenever it appears` },
+            loadAllHideCompleted: { val: false, name: '[Load All] Hide Completed', desc: `"Load All" buttons will hide your completed games instead of coloring them` },
+            hideMultiplatform: { val: false, name: `Hide Multiplatform From Filtered`, desc: `Hides multiplatform games from the 'Games' page when a platform filter is applied` },
         },
         colors: {
             /** Grey */
@@ -44,7 +46,7 @@ class Settings {
                     if (!Settings.games.has(game.id)) {
                         Settings.games.set(game.id, game);
                         Settings.save();
-                        Settings.games.mark(game);
+                        Settings.games.markOrHide(game);
                         this.replaceWith(Settings.icons.disown());
                     }
                 });
@@ -55,10 +57,10 @@ class Settings {
                 let icon = newElement('i', { class: 'far fa-minus-square iconOwnership', title: `Unregister game as 'owned'`, style: `cursor: pointer; margin-left:5px; background-color:#ff9999;` });
                 icon.addEventListener('click', function onclickDisownIcon() {
                     const game = new Game(this.closest('tr'));
-                    if (!Settings.games.played(game.id)) { // If game exists in cache, but is unplayed (played games shouldn't be uncached)
+                    if (!Settings.games.isPlayed(game.id)) { // If game exists in cache, but is unplayed (played games shouldn't be uncached)
                         Settings.games.delete(game.id);
                         Settings.save();
-                        Settings.games.mark(game);
+                        Settings.games.markOrHide(game);
                         this.replaceWith(Settings.icons.own());
                     }
                 });
@@ -93,37 +95,42 @@ class Settings {
             constructor(map) { map ? super(map) : super(); }
             /** Returns true if the passed Game ID is played (has numerical percent), otherwise false.
             * @param {number} id */
-            played(id) {
+            isPlayed(id) {
                 const g = this.get(id);
                 if (!g || g.percent === undefined || isNaN(g.percent)) return false;
                 return true;
             }
             /** Returns true if the passed Game ID is cached and completed, otherwise false.
              * @param {number} id */
-            completed(id) {
-                if (!this.played(id)) return false;
+            isCompleted(id) {
+                if (!this.isPlayed(id)) return false;
                 /** @type {GameWithProgress} */
                 const g = this.get(id);
                 return Settings.bools.platify.val ? g.isPlatted : g.percent === 100;
             }
             /** @param {Game[]} games */
-            mark(...games) {
+            markOrHide(...games) {
                 games.forEach(game => {
-                    const completed = this.completed(game.id)
-                        , merelyPlatted = !completed && this.played(game.id) && this.get(game.id).isPlatted
+                    const completed = this.isCompleted(game.id)
+                        , merelyPlatted = !completed && this.isPlayed(game.id) && this.get(game.id).isPlatted
                         , playedOrOwned = !completed && this.has(game.id);
 
-                    if (completed) game.el.querySelectorAll('td:not([rowspan])').forEach((x) => x.style.backgroundColor = Settings.colors.completed);
+                    if (completed) {
+                        game.el.querySelectorAll('td:not([rowspan])').forEach((x) => x.style.backgroundColor = Settings.colors.completed);
+                        // Settings.bools.loadAllHideCompleted.val
+                        //     ? game.el.style.display='none'
+                        //     : game.el.querySelectorAll('td:not([rowspan])').forEach((x) => x.style.backgroundColor = Settings.colors.completed);
+                    }
                     else if (merelyPlatted) game.el.querySelectorAll('td:not([rowspan])').forEach((x) => x.style.backgroundColor = Settings.colors.merelyPlatted); // Green
                     else if (playedOrOwned) game.el.querySelectorAll('td:not([rowspan])').forEach((x) => x.style.backgroundColor = Settings.colors.playedOrOwned); // Blue
-                    else game.el.querySelectorAll('td:not([rowspan])').forEach((x) => x.style.backgroundColor = ''); // Reset
+                    else game.el.querySelectorAll('td:not([rowspan])').forEach((x) => x.style.backgroundColor = ''); // Clears any formatting
                 });
             }
             /** @param {Game[]} games */
             appendOwnershipIcon(...games) {
                 if (!Settings.bools.ownershipIcons) return;
                 games.forEach(game => {
-                    if (this.played(game.id)) return;
+                    if (this.isPlayed(game.id)) return;
                     const icon = this.has(game.id) ? Settings.icons.disown() : Settings.icons.own();
                     if (game.el.querySelector('.iconOwnership')) game.el.querySelector('.iconOwnership').replaceWith(icon)
                     else game.el.querySelector('a.title, span > a').parentNode.appendChild(icon);
@@ -318,7 +325,7 @@ class PSNProfile {
 
                 // Parse stack info for current game
                 stacks.total++;
-                if (Settings.games.completed(game.id)) stacks.completed++;
+                if (Settings.games.isCompleted(game.id)) stacks.completed++;
                 parsed.set(game.id, game);
 
                 // Visit game page to parse its stacks, if any
@@ -327,7 +334,7 @@ class PSNProfile {
                     const stack = new Game(s);
                     stacks.games.push(stack);
                     stacks.total++;
-                    if (Settings.games.completed(stack.id)) stacks.completed++;
+                    if (Settings.games.isCompleted(stack.id)) stacks.completed++;
                     parsed.set(stack.id, stack)
                 });
 
@@ -534,31 +541,65 @@ function constructFastest() {
 function monitorGames(ms) {
     let games = Game.getNodes().map(g => new Game(g));
     console.log('found: ' + games.length);
-    Settings.games.mark(...games);
+    Settings.games.markOrHide(...games);
     Settings.games.appendOwnershipIcon(...games);
     if (ms) setTimeout(() => { monitorGames(ms) }, ms);
 }
 
-/** Event handler; assumes attached element (`this`) has properties `pages`, `url`, `class`.
- *  `url` page param must not be set. `class` is the type of object to instantiate. */
-async function loadAll() {
-    // Prepping the DOM
-    const tbody = Game.getNodes()[0]?.closest('tbody');
-    this.removeEventListener('click', loadAll);
-    window.addEventListener('scroll', function (e) { e.stopPropagation(); }, true);
-    document.querySelectorAll('ul.pagination > li').forEach(li => li?.remove());
-    Game.getNodes().forEach(g => g?.remove());
-    document.querySelector('#load-more')?.remove();
+/** Returns the \<tbody\> that holds the games on the current (or passed) page.
+ * @param {*} doc 
+ * @returns {HTMLTableSectionElement} */
+function getGamesTableBody(doc = document) { return doc.querySelector(':is(#game_list > tbody, #gamesTable > tbody, #search-results > tbody)'); }
 
-    for (let i = 1; i <= this.pages; i++) {
-        const doc = await fetchDoc(`${this.url}${i}`);
-        const nodes = Game.getNodes(doc);
-        for (let j = 0; j < nodes.length; j++) {
-            const game = new this.class(nodes[j]);
-            tbody.appendChild(game.el);
+
+
+/** Creates and appends button */
+async function createLoadAllPagesBtn(cb) {
+    const btn = newElement('a', {
+        href: 'javascript:void(0);',
+        title: 'Loads all rows from current page to last page',
+        style: `background:#64a75c; color: #fff; font-weight:500; text-transform:none; display:inline-block; font-family:'Roboto', Arial, Verdana, sans-serif;` +
+            `text-align:center; padding:4px 8px 4px 8px; border-radius: 2px; white-space:nowrap; margin-right: 20px; font-size:14px;`,
+    }, 'Load All');
+    btn.addEventListener('click', onclickLoadMore);
+    document.querySelector('#content div.col-xs-8 div.grow').appendChild(btn);
+
+
+    // Helper functions
+    async function onclickLoadMore(e) {
+        e.currentTarget.removeEventListener('click', onclickLoadMore);
+        e.currentTarget.style.display = 'none';
+
+        // Clearing the DOM
+        window.addEventListener('scroll', function (e) { e.stopPropagation(); }, true);
+        document.querySelectorAll('ul.pagination').forEach(ul => ul.style.display = 'none');
+        Game.getNodes().forEach(g => g.remove());
+        document.querySelector('#load-more')?.remove();
+
+        await iteratePages(cb);
+    }
+
+    async function iteratePages(cbPage) {
+        const baseUrl = location.href.split('?')[0];
+        const sp = new URLSearchParams(location.search);
+        const pages = +document.querySelector('#content ul.pagination:not(.small) > li:nth-last-child(2) > a').textContent;
+        const page = +sp.get('page') || 1;
+        const order = sp.has('order') ? `&order=${sp.get('order')}` : '';
+        const platform = sp.has('platform') ? `&platform=${sp.get('platform')}` : '';
+
+        for (let i = page; i <= pages; i++) {
+            console.log(`${baseUrl}?page=${i}${order}${platform}`);
+            const doc = await fetchDoc(`${baseUrl}?page=${i}${order}${platform}`);
+            cbPage(doc);
+            await asyncTimeout(1000);
         }
     }
 }
+
+async function asyncTimeout(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+
+
 
 
 
@@ -592,7 +633,7 @@ async function main() {
     document.querySelector('div.navigation > ul > li:nth-child(4)')?.after(seriesTab);
 
     /******************************************************************************************************************************
-                                                        PROFILE(?search=)
+                                                        PROFILE[?search=]
     ******************************************************************************************************************************/
     if (viewingAnyProfile && loggedIn) {
         games = Game.getNodes().map(g => new GameWithProgress(g));
@@ -636,22 +677,26 @@ async function main() {
             anchor.appendChild(btnEnvy);
             btnEnvy.addEventListener('click', PSNProfile.envy);
 
-            monitorGames();
+            monitorGames(2000);
         }
     }
     /******************************************************************************************************************************
-                                                            GAMES(?q=)
+                                                            GAMES[?q=]
     ******************************************************************************************************************************/
     else if (location.href.includes("/games") && loggedIn) {
         games = Game.getNodes().map(g => new Game(g));
-
-        // When viewing PS3 games, filter out cross-platform games
-        let sp = new URLSearchParams(window.location.search);
-        if (sp.get('platform') === 'ps3') {
-            games.forEach(game => { if (game.numPlatforms > 1) game.el.remove(); });
-        }
+        const header = document.querySelector('#content div.col-xs-8 div.grow');
+        const table = getGamesTableBody();
+        const sp = new URLSearchParams(window.location.search);
 
         monitorGames();
+
+        createLoadAllPagesBtn(cbGames);
+
+        // Hide multiplatform games if filtered (and setting is enabled)
+        if (Settings.bools.hideMultiplatform.val && sp.get('platform') !== 'psvr') {
+            games.forEach(g => { if (g.numPlatforms > 1) g.el.style.display = 'none'; });
+        }
 
         // Highly specific feature that only I care about (copying Game IDs)
         if (Settings.psnID === 'GIONAScm2') {
@@ -662,6 +707,26 @@ async function main() {
                 });
                 games[i].el.querySelector('td > a.title')?.after(checkbox);
             })
+        }
+
+        /** Callback function for each page */
+        function cbGames(doc) {
+            const games = Game.getNodes(doc).map(el => new Game(el));
+            Settings.games.markOrHide(...games);
+
+            // Hide multiplatform games if filtered (and setting is enabled)
+            if (Settings.bools.hideMultiplatform.val && sp.get('platform') !== 'psvr') {
+                games.forEach(g => { if (g.numPlatforms > 1) g.el.style.display = 'none'; });
+            }
+            // Hide completed games (if setting is enabled)
+            if (Settings.bools.loadAllHideCompleted.val) {
+                games.forEach(g => { if (Settings.games.isCompleted(g.id)) g.el.style.display = 'none'; });
+            }
+
+            games.forEach(g => {
+                table.appendChild(g.el);
+            });
+            monitorGames();
         }
     }
     /******************************************************************************************************************************
@@ -745,30 +810,29 @@ async function main() {
                                                        SERIES CATALOG
     ******************************************************************************************************************************/
     else if (window.location.pathname === '/series') {
-        const anchor = document.querySelector('#content div.col-xs-8 div.grow');
-        const btnLoadAll = newElement('a', {
-            href: '#',
-            title: 'Amalgamate pages',
-            style: `background:#64a75c; color: #fff; font-weight:500; text-transform:none; display:inline-block; font-family:'Roboto', Arial, Verdana, sans-serif;` +
-                `text-align:center; padding:4px 8px 4px 8px; border-radius: 2px; white-space:nowrap; margin-right: 20px; font-size:14px;`,
-        }, 'Load All');
+        const header = document.querySelector('#content div.col-xs-8 div.grow');
+        const table = getGamesTableBody();
         const infoDiv = newElement('div', { style: `display:inline-block; padding:4px 8px 4px 8px; width:200px; color:white; font-weight:500; margin-right:10px;` },
             newElement('span', { id: 'numLoaded', style: `display:inline-block; float:left;` }),
             newElement('span', { id: 'numHidden', style: `display:inline-block; float:right;` })
         );
 
         // Setting up DOM
-        anchor.style.cssText += 'text-align:right;'
-        anchor.querySelector('h3').style.cssText += 'float:left;'
-        anchor.appendChild(infoDiv);
-        btnLoadAll.url = 'https://psnprofiles.com/series?page=';
-        btnLoadAll.pages = +document.querySelector('#content ul.pagination > li.dots+li > a').textContent;
-        btnLoadAll.class = SeriesRow;
-        btnLoadAll.addEventListener('click', loadAll);
-        anchor.appendChild(btnLoadAll);
+        header.style.cssText += 'text-align:right;'
+        header.querySelector('h3').style.cssText += 'float:left;'
+        header.appendChild(infoDiv);
+        createLoadAllPagesBtn(cbSeries);
 
-        // Keeping infoDiv updated
-        SeriesRow.monitorSeriesList(Settings.bools.platify.val);
+        SeriesRow.refreshHeader(Settings.bools.platify.val);
+
+        /** Callback function for each page */
+        function cbSeries(doc) {
+            const seriesRows = Game.getNodes(doc).map(el => new SeriesRow(el));
+            seriesRows.forEach(s => {
+                table.appendChild(s.el);
+            });
+            SeriesRow.refreshHeader(Settings.bools.platify.val);
+        }
 
     }
     /******************************************************************************************************************************

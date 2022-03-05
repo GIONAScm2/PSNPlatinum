@@ -309,7 +309,7 @@ class SeriesRow {
         this.numBronze = +tr.querySelector('span.icon-sprite.bronze')?.nextElementSibling?.textContent.replace(/,/g, "").trim() || 0;
     }
 
-    static monitorSeriesList(platify) {
+    static refreshHeader(platify) {
         let seriesList = Game.getNodes().map(n => new SeriesRow(n));
         if (platify) {// Hides series without plats and makes numGames = numPlats
             seriesList.forEach(series => {
@@ -325,9 +325,6 @@ class SeriesRow {
         }
         let numLoaded = platify ? document.querySelectorAll('tbody > tr:not(.noplats)').length : seriesList.length;
         document.querySelector('#numLoaded').textContent = `${numLoaded} loaded`;
-
-        setTimeout(() => { this.monitorSeriesList(platify); }, 500);
-
     }
 }
 
