@@ -2,7 +2,7 @@
 // @name         PSNPlatinum
 // @author       GIONAScm2
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
-// @version      2.56
+// @version      2.57
 // @description  Script that improves PSNProfiles with new features.
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
@@ -193,7 +193,7 @@
             const settingsWindow = newElement('div', { style: `width:100%; height:100%; z-index:2000000000; display:none; position:fixed; top:0; left:0; overflow:auto; background-color:rgba(0,0,0,0.4); padding: 200px;` },
                 newElement('div', { id: 'settings-outer', style: `background-color:white; height:250px; max-width:1000px; margin:auto;` },
                     newElement('div', { id: 'settings-inner', style: `position:relative; padding: 10px 20px 20px; height:100%;` },
-                        newElement('h1', { style: `color:#0066ff; text-align:center; font-weight:bold; margin-bottom:20px;` }, `${GM_info.script.name} Settings`),
+                        newElement('h1', { style: `color:#3385ff; text-align:center; font-weight:bold; margin-bottom:20px;` }, `${GM_info.script.name} Settings`),
                         (function generateCheckboxes(bools) {
                             const checkboxes = newElement('div', {
                                 id: 'bools',
@@ -203,7 +203,7 @@
                                 let el = newElement('div', { class: 'row option', style: `display:flex; flex-wrap:nowrap; margin-bottom:10px;` }, //
                                     newElement('div', { style: `flex-basis: 250px;` },
                                         newElement('input', { type: 'checkbox', id: `check-${key}`, style: `margin-right:10px; `, [value.val ? 'checked' : 'null']: '' }),
-                                        newElement('span', {style: `font-weight:500;`}, bools[key].name)),
+                                        newElement('span', { style: `font-weight:500;` }, bools[key].name)),
                                     newElement('span', { style: `` }, `${value.desc}`));
 
                                 el.querySelector(`#check-${key}`).addEventListener('click', () => {
