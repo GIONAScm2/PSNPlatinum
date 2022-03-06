@@ -193,14 +193,18 @@
             const settingsWindow = newElement('div', { style: `width:100%; height:100%; z-index:2000000000; display:none; position:fixed; top:0; left:0; overflow:auto; background-color:rgba(0,0,0,0.4); padding: 200px;` },
                 newElement('div', { id: 'settings-outer', style: `background-color:white; height:250px; max-width:1000px; margin:auto;` },
                     newElement('div', { id: 'settings-inner', style: `position:relative; padding: 10px 20px 20px; height:100%;` },
-                        newElement('h1', { style: `color:blue; text-align:center; font-weight:bold; ` }, `${GM_info.script.name} Settings`),
+                        newElement('h1', { style: `color:#0066ff; text-align:center; font-weight:bold; margin-bottom:20px;` }, `${GM_info.script.name} Settings`),
                         (function generateCheckboxes(bools) {
-                            const checkboxes = newElement('div', { id: 'bools', style: `margin-top:10px;` });
+                            const checkboxes = newElement('div', {
+                                id: 'bools',
+                                style: `margin-top:10px; padding:10px; border:groove;`
+                            });
                             Object.entries(bools).forEach(([key, value]) => {
-                                let el = newElement('div', { style: `margin-top:10px ` },
-                                    newElement('input', { type: 'checkbox', id: `check-${key}`, style: `margin-right:10px; `, [value.val ? 'checked' : 'null']: '' }),
-                                    bools[key].name,
-                                    newElement('span', { style: `margin-left:10px; font-style:italic; ` }, `(${value.desc})`));
+                                let el = newElement('div', { class: 'row option', style: `display:flex; flex-wrap:nowrap; margin-bottom:10px;` }, //
+                                    newElement('div', { style: `flex-basis: 250px;` },
+                                        newElement('input', { type: 'checkbox', id: `check-${key}`, style: `margin-right:10px; `, [value.val ? 'checked' : 'null']: '' }),
+                                        newElement('span', {style: `font-weight:500;`}, bools[key].name)),
+                                    newElement('span', { style: `` }, `${value.desc}`));
 
                                 el.querySelector(`#check-${key}`).addEventListener('click', () => {
                                     bools[key].val = el.querySelector(`#check-${key}`).checked;
