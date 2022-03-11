@@ -2,7 +2,7 @@
 // @name         PSNPlatinum
 // @author       GIONAScm2
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
-// @version      2.57
+// @version      2.58
 // @description  Script that improves PSNProfiles with new features.
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
@@ -417,7 +417,7 @@
                 `text-align:center; padding:4px 8px 4px 8px; border-radius: 2px; white-space:nowrap; margin-right: 20px; font-size:14px;`,
         }, 'Load All');
         btn.addEventListener('click', onclickLoadMore);
-        document.querySelector('#content div.col-xs-8 div.grow').appendChild(btn);
+        document.querySelector('#content :is(div.col-xs-8 div.grow, div.col-xs-12 > div)').appendChild(btn);
 
 
         // Helper functions
@@ -436,7 +436,6 @@
 
         async function iteratePages(cbPage) {
             const baseUrl = location.href.split('?')[0];
-            const sp = new URLSearchParams(location.search);
             const pages = +document.querySelector('#content ul.pagination:not(.small) > li:nth-last-child(2) > a').textContent;
             const page = +sp.get('page') || 1;
             const order = sp.has('order') ? `&order=${sp.get('order')}` : '';
@@ -469,7 +468,8 @@
         viewingAnyProfile = document.querySelector('div.user-bar > div.avatar') && location.href.split('/').length === 4,
         games,
         header = document.querySelector('#content div.col-xs-8 div.grow'),
-        table = getGamesTableBody();
+        table = getGamesTableBody(),
+        sp = new URLSearchParams(window.location.search);
 
     Settings.init();
 
@@ -651,7 +651,6 @@
                 Game.getNodes().forEach(g => g.remove());
 
                 // Check for filters/params
-                let sp = new URLSearchParams(location.search);
                 sp = {
                     completion: sp.get('completion') || 'all',
                     order: sp.get('order') || 'last-played',
@@ -723,11 +722,11 @@
     function enhanceGamePages() {
         games = Game.getNodes().map(g => new Game(g));
         const table = getGamesTableBody();
-        const sp = new URLSearchParams(window.location.search);
 
         monitorGames();
 
         createLoadAllPagesBtn(cbGames);
+
 
         // Hide multiplatform games if filtered (and setting is enabled)
         if (Settings.bools.hideMultiplatform.val && sp.get('platform') !== 'psvr') {
