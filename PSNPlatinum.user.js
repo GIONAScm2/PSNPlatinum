@@ -2,7 +2,7 @@
 // @name         PSNPlatinum
 // @author       GIONAScm2
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
-// @version      2.58
+// @version      2.59
 // @description  Script that improves PSNProfiles with new features.
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
@@ -729,7 +729,7 @@
 
 
         // Hide multiplatform games if filtered (and setting is enabled)
-        if (Settings.bools.hideMultiplatform.val && sp.get('platform') !== 'psvr') {
+        if (Settings.bools.hideMultiplatform.val && sp.has('platform') && sp.get('platform') !== 'psvr') {
             games.forEach(g => { if (g.numPlatforms > 1) g.el.style.display = 'none'; });
         }
 
@@ -750,7 +750,7 @@
             Settings.games.markOrHide(...games);
 
             // Hide multiplatform games if filtered (and setting is enabled)
-            if (Settings.bools.hideMultiplatform.val && sp.get('platform') !== 'psvr') {
+            if (Settings.bools.hideMultiplatform.val && sp.has('platform') && sp.get('platform') !== 'psvr') {
                 games.forEach(g => { if (g.numPlatforms > 1) g.el.style.display = 'none'; });
             }
             // Hide completed games (if setting is enabled)
