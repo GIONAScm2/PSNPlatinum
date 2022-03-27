@@ -2,7 +2,7 @@
 // @name         PSNPlatinum
 // @author       GIONAScm2
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
-// @version      2.59
+// @version      2.60
 // @description  Script that improves PSNProfiles with new features.
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
@@ -248,216 +248,6 @@
 
 
 
-    function searchBarEnhancer(searchBar) {
-        setTimeout(() => {
-            // Removes any 'AND'/'OR' values (PSNP copies the URL query into the search bar for some reason...)
-            searchBar.value = (searchBar.value.match(/\S+/g) || []).filter((word => word !== 'AND' && word !== 'OR')).join(' ');
-            // Keeps cursor at the end of search text (PSNP resets it to the beginning)
-            if (searchBar.value !== '') searchBar.selectionStart = searchBar.selectionEnd = searchBar.value.length;
-        }, 500);
-
-        // Refines search results by inserting `AND`
-        searchBar.addEventListener("keydown", function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const words = this.value.match(/\S+/g) || [];
-                for (let i = 0; i < words.length - 1; i++) {
-                    //if (words[i].toString().toUpperCase() === "N++") words[i] = "nplusplus";
-                    if ((words[i] !== "AND" && words[i] !== "OR") && (words[i + 1] !== "AND" && words[i + 1] !== "OR")) words[i] += " AND ";
-                    else words[i] += " ";
-                }
-                const query = encodeURIComponent(words.join(''));
-                const key = viewingAnyProfile ? 'search' : 'q';
-                if (window.location.search) location = window.location.pathname + `?${key}=${query}`;
-                else if (viewingAnyProfile) location = window.location.pathname + `?${key}=${query}`;
-                else if (location.href.includes('/leaderboard')) location = `/search/users?${key}=${query}`;
-                else location = '/search' + window.location.pathname + `?${key}=${query}`;
-            }
-        });
-    }
-
-    /** Dynamically inserts completion time into First, Last, and Fastest Achievers.
-     * @param {document} doc */
-    async function insertFirstLatestFastest(doc = document) {
-        const tables = doc.querySelectorAll('#content div.col-xs-4 tbody'),
-            tFirst = tables[0], tFirstUsers = tFirst.querySelectorAll('tr'),
-            tLatest = tables[1], tLatestUsers = tLatest.querySelectorAll('tr'),
-            tFastest = tables[2], tFastestUsers = tFastest.querySelectorAll('tr'),
-            noAchievers = tFirstUsers.length === 0;
-
-        // Fetching user's trophy list
-        let url = window.location.href.replace('100-club', 'trophies');
-        url = `${url}/${Settings.psnID}?order=date`;
-        let trophyList = await fetchDoc(url);
-
-        // Scraping the relevant data
-        const avatar = trophyList.querySelector('a > img.trophy').getAttribute('src').replace('/m/', '/s/');
-        trophyList = trophyList.querySelector('div.col-xs table.zebra > tbody');
-        const firstTrophy = trophyList.querySelector('tr:first-of-type');
-        const lastTrophy = Settings.bools.platify.val
-            ? trophyList.querySelector('td img[title="Platinum"]').closest('tr')
-            : trophyList.querySelector('tr:last-of-type');
-        if (!lastTrophy.classList.contains('completed')) return false;
-        const dateElements = lastTrophy.querySelector('td > span.separator.right').childNodes;
-
-        // [First] Comparing dates and adjusting accordingly
-        const myDate = Trophy.parseDate(lastTrophy);
-        let rankFirst = 0, qualified = false;
-        tFirstUsers.forEach((tr, i) => {
-            const theirDate = Trophy.parseDate(tr);
-            if (!qualified && myDate <= theirDate) {
-                rankFirst = i + 1;
-                qualified = true;
-            }
-            if (qualified) tr.querySelector('td.rank').textContent = i + 2;
-        });
-        if (qualified && tFirstUsers[49]) tFirstUsers[49].remove();
-
-        // [Latest] Comparing dates and adjusting accordingly
-        let rankLatest = 0; qualified = false;
-        tLatestUsers.forEach((tr, i) => {
-            const theirDate = Trophy.parseDate(tr);
-            if (!qualified && myDate >= theirDate) {
-                rankLatest = i + 1;
-                qualified = true;
-            }
-            if (qualified) tr.querySelector('td.rank').textContent = i + 2;
-        });
-        if (qualified && tLatestUsers[49]) tLatestUsers[49].remove();
-
-        // [Fastest] Comparing speeds and adjusting accordingly
-        const mySpeed = (Trophy.parseDate(lastTrophy) - Trophy.parseDate(firstTrophy)) / 1000;
-        let rankFastest = 0; qualified = false;
-        tFastestUsers.forEach((tr, i) => {
-            const theirSpeed = GameWithProgress.speedStringToSeconds(tr.querySelector('span.typo-top-date nobr').textContent);
-            if (!qualified && mySpeed <= theirSpeed) {
-                rankFastest = i + 1;
-                qualified = true;
-            }
-            if (qualified) tr.querySelector('td.rank').textContent = i + 2;
-        });
-        if (qualified && tFastestUsers[49]) tFastestUsers[49].remove();
-
-        // Adjusting ranks if page is empty
-        if (noAchievers) {
-            rankFirst++; rankLatest++; rankFastest++;
-        }
-        // Creating elements
-        const myFirst = newElement('tr', { style: `background-color:${Settings.colors.completed};` },
-            newElement('td', { class: 'rank', style: [noAchievers ? 'padding-left:10px;padding-right:10px;' : ''] }, `${rankFirst}`),
-            newElement('td', {},
-                newElement('a', { href: `/${Settings.psnID}` },
-                    newElement('img', { class: 'trophy sm', src: `${avatar}` }, ''))),
-            newElement('td', { style: `width: 100%;` },
-                newElement('a', { class: 'title', href: `/${Settings.psnID}` }, `${Settings.psnID}`)),
-            newElement('td', {},
-                newElement('center', {}, ...dateElements))
-        );
-        const myLatest = myFirst.cloneNode(true);
-        myLatest.querySelector('td.rank').textContent = rankLatest;
-        const myFastest = myFirst.cloneNode(true);
-        myFastest.querySelector('td.rank').textContent = rankFastest;
-        myFastest.querySelector('td:last-of-type').classList.add('right');
-        myFastest.querySelector('td:last-of-type').replaceChildren(newElement('span', { class: 'typo-top-date' },
-            newElement('nobr', {}, `${GameWithProgress.secondsToSpeedString(mySpeed)}`)));
-
-        // Inserting elements if ranked
-        if (rankFirst > 0) tFirst.insertBefore(myFirst, tFirstUsers[rankFirst - 1]);
-        else if (noAchievers) tFirst.appendChild(myFirst);
-        if (rankLatest > 0) tLatest.insertBefore(myLatest, tLatestUsers[rankLatest - 1]);
-        else if (noAchievers) tLatest.appendChild(myLatest);
-        if (rankFastest > 0) tFastest.insertBefore(myFastest, tFastestUsers[rankFastest - 1]);
-        else if (noAchievers) tFastest.appendChild(myFastest);
-
-        return true;
-    }
-
-    /** Constructs a 100% Club for when there isn't one.
-     * @param {document} doc */
-    function constructFastest() {
-        const first = newElement('div', { class: 'col-xs-4' },
-            newElement('div', { class: 'title center flex v-align' },
-                newElement('div', { class: 'grow' },
-                    newElement('h3', {}, 'First Achievers'))),
-            newElement('table', { class: 'box zebra no-top-border' },
-                newElement('tbody', {}))
-        );
-        const latest = first.cloneNode(true);
-        latest.querySelector('h3').textContent = 'Latest Achievers';
-        const fastest = first.cloneNode(true);
-        fastest.querySelector('h3').textContent = 'Fastest Achievers';
-
-        return newElement('div', { class: 'row' }, first, latest, fastest);
-    }
-
-    /** Applies enhancements to games once, or every `ms`.
-     * @param {number} ms */
-    function monitorGames(ms) {
-        let games = Game.getNodes().map(g => new Game(g));
-        console.log('found: ' + games.length);
-        Settings.games.markOrHide(...games);
-        Settings.games.appendOwnershipIcon(...games);
-        if (ms) setTimeout(() => { monitorGames(ms) }, ms);
-    }
-
-    /** Returns the \<tbody\> that holds the games on the current (or passed) page.
-     * @param {*} doc 
-     * @returns {HTMLTableSectionElement} */
-    function getGamesTableBody(doc = document) { return doc.querySelector(':is(#game_list > tbody, #gamesTable > tbody, #search-results > tbody)'); }
-
-
-
-    /** Creates and appends button */
-    async function createLoadAllPagesBtn(cb) {
-        const btn = newElement('a', {
-            href: 'javascript:void(0);',
-            title: 'Loads all rows from current page to last page',
-            style: `background:#64a75c; color: #fff; font-weight:500; text-transform:none; display:inline-block; font-family:'Roboto', Arial, Verdana, sans-serif;` +
-                `text-align:center; padding:4px 8px 4px 8px; border-radius: 2px; white-space:nowrap; margin-right: 20px; font-size:14px;`,
-        }, 'Load All');
-        btn.addEventListener('click', onclickLoadMore);
-        document.querySelector('#content :is(div.col-xs-8 div.grow, div.col-xs-12 > div)').appendChild(btn);
-
-
-        // Helper functions
-        async function onclickLoadMore(e) {
-            e.currentTarget.removeEventListener('click', onclickLoadMore);
-            e.currentTarget.style.display = 'none';
-
-            // Clearing the DOM
-            window.addEventListener('scroll', function (e) { e.stopPropagation(); }, true);
-            document.querySelectorAll('ul.pagination').forEach(ul => ul.style.display = 'none');
-            Game.getNodes().forEach(g => g.remove());
-            document.querySelector('#load-more')?.remove();
-
-            await iteratePages(cb);
-        }
-
-        async function iteratePages(cbPage) {
-            const baseUrl = location.href.split('?')[0];
-            const pages = +document.querySelector('#content ul.pagination:not(.small) > li:nth-last-child(2) > a').textContent;
-            const page = +sp.get('page') || 1;
-            const order = sp.has('order') ? `&order=${sp.get('order')}` : '';
-            const platform = sp.has('platform') ? `&platform=${sp.get('platform')}` : '';
-
-            for (let i = page; i <= pages; i++) {
-                console.log(`${baseUrl}?page=${i}${order}${platform}`);
-                const doc = await fetchDoc(`${baseUrl}?page=${i}${order}${platform}`);
-                cbPage(doc);
-                await asyncTimeout(1000);
-            }
-        }
-    }
-
-    async function asyncTimeout(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-
-
-
-
-
     /******************************************************************************************************************************
                                                             START OF SCRIPT
     ******************************************************************************************************************************/
@@ -468,7 +258,7 @@
         viewingSubforum = location.pathname.split('/')[1] === 'forum',
         viewingAnyProfile = document.querySelector('div.user-bar > div.avatar') && location.href.split('/').length === 4,
         games,
-        header = document.querySelector('#content div.col-xs-8 div.grow'),
+        header = document.querySelector('#content :is(div.col-xs-8 div.grow, div.col-xs-12 > div.title)'), 
         table = getGamesTableBody(),
         sp = new URLSearchParams(window.location.search);
 
@@ -488,6 +278,7 @@
         await enhanceProfilePages();
     }
     else if (location.href.includes("/games") && loggedIn) {
+        console.log(table, header);
         enhanceGamePages();
     }
     else if (location.href.includes("/trophies/")) {
@@ -722,7 +513,6 @@
     /** GAMES[?q=] */
     function enhanceGamePages() {
         games = Game.getNodes().map(g => new Game(g));
-        const table = getGamesTableBody();
 
         monitorGames();
 
@@ -837,16 +627,13 @@
 
     function enhanceSeriesCatalog() {
         const table = getGamesTableBody();
-        const infoDiv = newElement('div', { style: `display:inline-block; padding:4px 8px 4px 8px; width:200px; color:white; font-weight:500; margin-right:10px;` },
-            newElement('span', { id: 'numLoaded', style: `display:inline-block; float:left;` }),
-            newElement('span', { id: 'numHidden', style: `display:inline-block; float:right;` })
+        const infoDiv = newElement('div', { style: `display: inline-block; padding:4px 8px 4px 8px; width:200px; color:white; font-weight:500; margin-right:10px;` },
+            newElement('span', { id: 'numLoaded', style: `margin-right: 30px;` }),
+            newElement('span', { id: 'numHidden', style: `` })
         );
 
-        // Setting up DOM
-        header.style.cssText += 'text-align:right;'
-        header.querySelector('h3').style.cssText += 'float:left;'
-        header.appendChild(infoDiv);
         createLoadAllPagesBtn(cbSeries);
+        header.appendChild(infoDiv);
 
         SeriesRow.refreshHeader(Settings.bools.platify.val);
 
@@ -920,5 +707,219 @@
 
     }
 
+    function searchBarEnhancer(searchBar) {
+        setTimeout(() => {
+            // Removes any 'AND'/'OR' values (PSNP copies the URL query into the search bar for some reason...)
+            searchBar.value = (searchBar.value.match(/\S+/g) || []).filter((word => word !== 'AND' && word !== 'OR')).join(' ');
+            // Keeps cursor at the end of search text (PSNP resets it to the beginning)
+            if (searchBar.value !== '') searchBar.selectionStart = searchBar.selectionEnd = searchBar.value.length;
+        }, 500);
+
+        // Refines search results by inserting `AND`
+        searchBar.addEventListener("keydown", function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const words = this.value.match(/\S+/g) || [];
+                for (let i = 0; i < words.length - 1; i++) {
+                    //if (words[i].toString().toUpperCase() === "N++") words[i] = "nplusplus";
+                    if ((words[i] !== "AND" && words[i] !== "OR") && (words[i + 1] !== "AND" && words[i + 1] !== "OR")) words[i] += " AND ";
+                    else words[i] += " ";
+                }
+                const query = encodeURIComponent(words.join(''));
+                const key = viewingAnyProfile ? 'search' : 'q';
+                if (window.location.search) location = window.location.pathname + `?${key}=${query}`;
+                else if (viewingAnyProfile) location = window.location.pathname + `?${key}=${query}`;
+                else if (location.href.includes('/leaderboard')) location = `/search/users?${key}=${query}`;
+                else location = '/search' + window.location.pathname + `?${key}=${query}`;
+            }
+        });
+    }
+
+    /** Dynamically inserts completion time into First, Last, and Fastest Achievers.
+     * @param {document} doc */
+    async function insertFirstLatestFastest(doc = document) {
+        const tables = doc.querySelectorAll('#content div.col-xs-4 tbody'),
+            tFirst = tables[0],
+            tFirstUsers = tFirst.querySelectorAll('tr'),
+            tLatest = tables[1],
+            tLatestUsers = tLatest.querySelectorAll('tr'),
+            tFastest = tables[2],
+            tFastestUsers = tFastest.querySelectorAll('tr'),
+            noAchievers = tFirstUsers.length === 0;
+
+        // Fetching user's trophy list
+        let url = window.location.href.replace('100-club', 'trophies');
+        url = `${url}/${Settings.psnID}?order=date`;
+        let trophyList = await fetchDoc(url);
+
+        // Scraping the relevant data
+        const avatar = trophyList.querySelector('a > img.trophy').getAttribute('src').replace('/m/', '/s/');
+        trophyList = trophyList.querySelector('div.col-xs table.zebra > tbody');
+        const firstTrophy = trophyList.querySelector('tr:first-of-type');
+        const lastTrophy = Settings.bools.platify.val
+            ? trophyList.querySelector('td img[title="Platinum"]').closest('tr')
+            : trophyList.querySelector('tr:last-of-type');
+        if (!lastTrophy.classList.contains('completed')) return false;
+        const dateElements = lastTrophy.querySelector('td > span.separator.right').childNodes;
+
+        // [First] Comparing dates and adjusting accordingly
+        const myDate = Trophy.parseDate(lastTrophy);
+        let rankFirst = 0,
+            qualified = false;
+        tFirstUsers.forEach((tr, i) => {
+            const theirDate = Trophy.parseDate(tr);
+            if (!qualified && myDate <= theirDate) {
+                rankFirst = i + 1;
+                qualified = true;
+            }
+            if (qualified) tr.querySelector('td.rank').textContent = i + 2;
+        });
+        if (qualified && tFirstUsers[49]) tFirstUsers[49].remove();
+
+        // [Latest] Comparing dates and adjusting accordingly
+        let rankLatest = 0;
+        qualified = false;
+        tLatestUsers.forEach((tr, i) => {
+            const theirDate = Trophy.parseDate(tr);
+            if (!qualified && myDate >= theirDate) {
+                rankLatest = i + 1;
+                qualified = true;
+            }
+            if (qualified) tr.querySelector('td.rank').textContent = i + 2;
+        });
+        if (qualified && tLatestUsers[49]) tLatestUsers[49].remove();
+
+        // [Fastest] Comparing speeds and adjusting accordingly
+        const mySpeed = (Trophy.parseDate(lastTrophy) - Trophy.parseDate(firstTrophy)) / 1000;
+        let rankFastest = 0;
+        qualified = false;
+        tFastestUsers.forEach((tr, i) => {
+            const theirSpeed = GameWithProgress.speedStringToSeconds(tr.querySelector('span.typo-top-date nobr').textContent);
+            if (!qualified && mySpeed <= theirSpeed) {
+                rankFastest = i + 1;
+                qualified = true;
+            }
+            if (qualified) tr.querySelector('td.rank').textContent = i + 2;
+        });
+        if (qualified && tFastestUsers[49]) tFastestUsers[49].remove();
+
+        // Adjusting ranks if page is empty
+        if (noAchievers) {
+            rankFirst++;
+            rankLatest++;
+            rankFastest++;
+        }
+        // Creating elements
+        const myFirst = newElement('tr', { style: `background-color:${Settings.colors.completed};` },
+            newElement('td', { class: 'rank', style: [noAchievers ? 'padding-left:10px;padding-right:10px;' : ''] }, `${rankFirst}`),
+            newElement('td', {},
+                newElement('a', { href: `/${Settings.psnID}` },
+                    newElement('img', { class: 'trophy sm', src: `${avatar}` }, ''))),
+            newElement('td', { style: `width: 100%;` },
+                newElement('a', { class: 'title', href: `/${Settings.psnID}` }, `${Settings.psnID}`)),
+            newElement('td', {},
+                newElement('center', {}, ...dateElements))
+        );
+        const myLatest = myFirst.cloneNode(true);
+        myLatest.querySelector('td.rank').textContent = rankLatest;
+        const myFastest = myFirst.cloneNode(true);
+        myFastest.querySelector('td.rank').textContent = rankFastest;
+        myFastest.querySelector('td:last-of-type').classList.add('right');
+        myFastest.querySelector('td:last-of-type').replaceChildren(newElement('span', { class: 'typo-top-date' },
+            newElement('nobr', {}, `${GameWithProgress.secondsToSpeedString(mySpeed)}`)));
+
+        // Inserting elements if ranked
+        if (rankFirst > 0) tFirst.insertBefore(myFirst, tFirstUsers[rankFirst - 1]);
+        else if (noAchievers) tFirst.appendChild(myFirst);
+        if (rankLatest > 0) tLatest.insertBefore(myLatest, tLatestUsers[rankLatest - 1]);
+        else if (noAchievers) tLatest.appendChild(myLatest);
+        if (rankFastest > 0) tFastest.insertBefore(myFastest, tFastestUsers[rankFastest - 1]);
+        else if (noAchievers) tFastest.appendChild(myFastest);
+
+        return true;
+    }
+
+    /** Constructs a 100% Club for when there isn't one.
+     * @param {document} doc */
+    function constructFastest() {
+        const first = newElement('div', { class: 'col-xs-4' },
+            newElement('div', { class: 'title center flex v-align' },
+                newElement('div', { class: 'grow' },
+                    newElement('h3', {}, 'First Achievers'))),
+            newElement('table', { class: 'box zebra no-top-border' },
+                newElement('tbody', {}))
+        );
+        const latest = first.cloneNode(true);
+        latest.querySelector('h3').textContent = 'Latest Achievers';
+        const fastest = first.cloneNode(true);
+        fastest.querySelector('h3').textContent = 'Fastest Achievers';
+
+        return newElement('div', { class: 'row' }, first, latest, fastest);
+    }
+
+    /** Applies enhancements to games once, or every `ms`.
+     * @param {number} ms */
+    function monitorGames(ms) {
+        let games = Game.getNodes().map(g => new Game(g));
+        Settings.games.markOrHide(...games);
+        Settings.games.appendOwnershipIcon(...games);
+        if (ms) setTimeout(() => { monitorGames(ms) }, ms);
+    }
+
+    /** Returns the \<tbody\> that holds the games on the current (or passed) page.
+     * @param {*} doc 
+     * @returns {HTMLTableSectionElement} */
+    function getGamesTableBody(doc = document) { return doc.querySelector(':is(#search-results tbody, #game_list > tbody, #gamesTable > tbody)'); }
+
+
+
+    /** Creates and appends button */
+    async function createLoadAllPagesBtn(cb) {
+        const btn = newElement('a', {
+            href: 'javascript:void(0);',
+            title: 'Loads all rows from current page to last page',
+            style: `background:#64a75c; color: #fff; font-weight:500; text-transform:none; display:inline-block; font-family:'Roboto', Arial, Verdana, sans-serif;`
+                +`text-align:center; padding:4px 8px 4px 8px; border-radius: 2px; white-space:nowrap; margin-right: 20px; margin-left: 50px; font-size:14px; float: none;`,
+        }, 'Load All');
+        btn.addEventListener('click', onclickLoadMore);
+
+        // Prettifying DOM
+        header.appendChild(btn);
+
+
+        // Helper functions
+        async function onclickLoadMore(e) {
+            e.currentTarget.removeEventListener('click', onclickLoadMore);
+            e.currentTarget.style.display = 'none';
+
+            // Clearing DOM
+            window.addEventListener('scroll', function(e) { e.stopPropagation(); }, true);
+            document.querySelectorAll('ul.pagination').forEach(ul => ul.style.display = 'none');
+            Game.getNodes().forEach(g => g.remove());
+            document.querySelector('#load-more')?.remove();
+
+            await iteratePages(cb);
+        }
+
+        async function iteratePages(cbPage) {
+            const baseUrl = location.href.split('?')[0];
+            const pages = +document.querySelector('#content ul.pagination:not(.small) > li:nth-last-child(2) > a').textContent;
+            const page = +sp.get('page') || 1;
+            const q = sp.has('q') ? `&q=${encodeURIComponent(sp.get('q'))}` : '';
+            const order = sp.has('order') ? `&order=${sp.get('order')}` : '';
+            const platform = sp.has('platform') ? `&platform=${sp.get('platform')}` : '';
+
+            for (let i = page; i <= pages; i++) {
+                const url = `${baseUrl}?page=${i}${q}${order}${platform}`
+                const doc = await fetchDoc(url);
+                cbPage(doc);
+                await asyncTimeout(1000);
+            }
+        }
+    }
+
+    async function asyncTimeout(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 })();

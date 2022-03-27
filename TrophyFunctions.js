@@ -155,8 +155,9 @@ class Game {
 
     /** Returns NodeList of games from Profile(?q=), Games(?q=), Series, and TrophyList ("Other Platforms and Regions"). */
     static getNodes(doc = document) {
-        if (doc.URL.includes('/trophies/'))
-            return new TrophyList(doc).stacks
+        if (doc.URL.includes('/trophies/')) {
+            return new TrophyList(doc).stacks;
+        }
         return Array.from(doc.querySelectorAll(`:is(#game_list, #search-results:not([style='display: none;']), #gamesTable:not([style='display: none;']), table.series:not(.legend)) tbody > tr:not(:empty, [id='load-more'], [id='table-loading'])`));
     }
 
