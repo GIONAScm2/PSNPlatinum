@@ -10,8 +10,9 @@
 // @require      https://github.com/GIONAScm2/PSNPlatinum/raw/main/TrophyFunctions.js
 // ==/UserScript==
 
-/// <reference path="./../TrophyFunctions.js"/>     // Enables IntelliSense
+/// <reference path="TrophyFunctions.js"/>     // Enables IntelliSense
 /* global colorLog, fetchDoc, newElement, copyToClipboard, TrophyList, Trophy,  Game, GameWithProgress, SeriesRow, Series, CopyCheckbox, */  // ESLint whitelist
+
 
 (async () => {
 
@@ -169,9 +170,9 @@
 
             if (storedSettings) {
                 // Load PSN ID
-                if ('psnID' in storedSettings) this.#data.psnID = storedSettings.psnID || '';
+                this.#data.psnID = storedSettings.psnID || '';
                 // Load saved boolean values
-                Object.entries(this.#data.bools).filter(([key]) => key in storedSettings?.bools).forEach(([key, value]) => {
+                Object.entries(this.#data.bools).filter(([key]) => key in (storedSettings?.bools || {})).forEach(([key, value]) => {
                     // console.log(`${key}: ${value.val} -> ${storedSettings.bools[key].val}`);
                     value.val = storedSettings.bools[key]?.val || value.val;
                 });
