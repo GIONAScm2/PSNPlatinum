@@ -139,8 +139,7 @@ class Game {
             : tr.querySelector('td > span.separator > span.typo-top')
                 ? tr.querySelector('td > span.separator > span.typo-top').textContent.trim()
                 : '';
-        /** @type {string} Returns E.G. `c51cff/S213ff9` from `https://i.psnprofiles.com/games/c51cff/S213ff9.png` */
-        this._srcId = /\w+\/\w+(?=\.[A-z]{3}$)/.exec(tr.querySelector('img').getAttribute('src') || '')?.at(0);
+        // this.image = tr.querySelector('img').getAttribute('src');
         this.platformArray = Array.from(tr.querySelectorAll('span.tag.platform')).map((tag) => tag.textContent);
         this.platforms = {
             Vita: this.platformArray.includes('Vita'),
@@ -152,8 +151,6 @@ class Game {
     }
 
     get numPlatforms() { return Object.values(this.platforms).filter(b => b === true).length; }
-    /** Constructs image src from `this._srcId` */
-    get image() { return this._srcId ? `https://i.psnprofiles.com/games/${this._srcId}.png` : ''; }
 
 
     /** Returns NodeList of games from Profile(?q=), Games(?q=), Series, and TrophyList ("Other Platforms and Regions"). */

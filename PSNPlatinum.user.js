@@ -474,6 +474,7 @@
                 `text-align:center; padding:4px 8px 4px 8px; border-radius: 2px; white-space:nowrap; margin-right: 20px; font-size:14px;`,
         }, 'Stackify');
 
+
         /******************************************************************************************************************************
                                                                 OWN PROFILE
         ******************************************************************************************************************************/
@@ -491,12 +492,6 @@
 
             // Cache any new games
             await PSNProfile.cacheGames();
-
-            // Add dropdown
-            /** @type {HTMLUListElement} */
-            const dropdown_order = document.querySelector('#content div.col-xs-8 > div.title div.dropdown > a.order')?.nextElementSibling;
-            const times = Array.from(Settings.games.values()).filter(game => game.speed).sort((a, b) => a.speed - b.speed);
-
         }
         /******************************************************************************************************************************
                                                                 OTHER PROFILE
