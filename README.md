@@ -1,5 +1,7 @@
 # PSNPlatinum
 A userscript that augments [PSNP](https://psnprofiles.com/) with various QoL enhancements and features.
+
+**NOTE:** v3.0.0 revamps the source code, so expect some initial instability.
 ___
 ## Installation/Usage
 0. Install a userscript manager browser extension (such as [Tampermonkey](https://www.tampermonkey.net/)).
