@@ -4,7 +4,7 @@
 // @run-at       document-start
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
 // @description  An otaku's take on enhancing PSNP.
-// @version      3.0.0
+// @version      3.0.1
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js	
 // @match        https://*.psnprofiles.com/*
@@ -3245,35 +3245,34 @@ exports.aliases = aliases;
 
 __webpack_require__.a(module, async (__webpack_handle_async_dependencies__, __webpack_async_result__) => { try {
 __webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "monitorGames": () => (/* binding */ monitorGames)
+/* harmony export */ });
 /* harmony import */ var _modules_settings__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__("./src/modules/settings.ts");
 /* harmony import */ var _modules_trophies__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__("./src/modules/trophies.ts");
 /* harmony import */ var _modules_util__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__("./src/modules/util.ts");
 /* harmony import */ var _modules_game__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__("./src/modules/game.ts");
 /* harmony import */ var _modules_series__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__("./src/modules/series.ts");
+/* harmony import */ var _modules_Profile__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__("./src/modules/Profile.ts");
+var __webpack_async_dependencies__ = __webpack_handle_async_dependencies__([_modules_Profile__WEBPACK_IMPORTED_MODULE_5__]);
+_modules_Profile__WEBPACK_IMPORTED_MODULE_5__ = (__webpack_async_dependencies__.then ? (await __webpack_async_dependencies__)() : __webpack_async_dependencies__)[0];
 
 
 
 
 
-const sp = new URLSearchParams(window.location.search);
+
+const _page = new _modules_util__WEBPACK_IMPORTED_MODULE_2__.Page();
+const sp = _page.sp; //temp until refactor
+console.time('SETTINGS LOADED');
 const _settings = await _modules_settings__WEBPACK_IMPORTED_MODULE_0__["default"].init();
+console.timeEnd('SETTINGS LOADED');
+// _settings.stacks = [];
+// await _settings.save();
+console.log(_settings.stacks);
 _modules_settings__WEBPACK_IMPORTED_MODULE_0__._load.userBar.then(el => {
     _settings.appendSettingsMenu();
 });
-const _url = new (class PSNP_URL {
-    URL;
-    constructor() {
-        this.URL = new URL(window.location.href);
-    }
-    get domain() {
-        return this.URL.hostname.split(`.`).at(0);
-    }
-    get pageType() {
-        return {
-            forumTopic: this.domain === 'forum' && window.location.pathname.split(`/`).at(1) === `topic`,
-        };
-    }
-})();
 console.time('PSNPlatinum script execution');
 _modules_settings__WEBPACK_IMPORTED_MODULE_0__._load.footer.then(el => {
     const games = _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"].getNodes().map(node => new _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"](node));
@@ -3281,8 +3280,6 @@ _modules_settings__WEBPACK_IMPORTED_MODULE_0__._load.footer.then(el => {
 /**
  * GLOBAL ENHANCEMENTS
  */
-(0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.colorLog)(`${GM.info.script.name} (v${GM.info.script.version}) is running ` +
-    (_settings.psnId ? `(PSN: '${_settings.psnId}')` : `in Limited Mode`), `${_settings.psnId ? 'green' : 'red'}`);
 // Improves search bars
 _modules_settings__WEBPACK_IMPORTED_MODULE_0__._load.search.then(searchBarEnhancer);
 // Add Series tab to nav bar
@@ -3291,15 +3288,18 @@ _modules_settings__WEBPACK_IMPORTED_MODULE_0__._load.search.then(searchBarEnhanc
     document.querySelector(`div.navigation > ul > li:nth-child(4)`)?.after(seriesTab);
 });
 await _modules_settings__WEBPACK_IMPORTED_MODULE_0__._load.footer;
-var viewingSubforum = location.pathname.split(`/`)[1] === `forum`, viewingAnyProfile = document.querySelector(`div.user-bar > div.avatar`) && location.href.split(`/`).length === 4, games, header = document.querySelector(`#content :is(div.col-xs-8 div.grow, div.col-xs-12 > div.title)`), table = (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.getGamesTableBody)();
-if (_url.domain === 'forum') {
-    if (_url.pageType.forumTopic) {
+var viewingAnyProfile = document.querySelector(`div.user-bar > div.avatar`) && location.href.split(`/`).length === 4, games, header = document.querySelector(`#content :is(div.col-xs-8 div.grow, div.col-xs-12 > div.title)`), table = _page.gamesTableBody;
+if (_page.site === 'PSNPf') {
+    if (_page.pageType === 'thread') {
         await onForumTopic();
     }
+    else if (_page.pageType === 'subforum') {
+        console.log(`viewing subforum`);
+    }
 }
-else if (_url.domain === 'psnprofiles') {
+else if (_page.site === 'PSNP') {
     if (viewingAnyProfile) {
-        await onProfile();
+        await (0,_modules_Profile__WEBPACK_IMPORTED_MODULE_5__["default"])(_settings, _page);
     }
     else if (location.href.includes(`/games`)) {
         onGames();
@@ -3324,9 +3324,6 @@ else if (_url.domain === 'psnprofiles') {
     }
     else if (location.pathname.substring(0, 7) === `/guide/`) {
         onTrophyGuide();
-    }
-    else if (viewingSubforum) {
-        console.log(`viewing subforum`);
     }
 }
 console.timeEnd('PSNPlatinum script execution');
@@ -3371,253 +3368,6 @@ function searchBarEnhancer(searchBar) {
             }
         }
     });
-}
-/** PROFILE[?search=] */
-async function onProfile() {
-    class PSNProfile {
-        psnId;
-        stats;
-        numPages;
-        rarestTrophies;
-        constructor(doc = document) {
-            this.psnId = doc.querySelector(`div#user-bar span.username`).textContent.trim();
-            this.stats = {
-                gamesPlayed: +doc
-                    .querySelector(`span.stat.grow:nth-of-type(1)`)
-                    .childNodes[0].textContent.replace(/,/g, ``),
-                gamesCompleted: +doc
-                    .querySelector(`span.stat.grow:nth-of-type(2)`)
-                    .childNodes[0].textContent.replace(/,/g, ``),
-                completion: +doc
-                    .querySelector(`span.stat.grow:nth-of-type(3)`)
-                    .childNodes[0].textContent.replace(`%`, ``),
-                unearnedTrophies: +doc
-                    .querySelector(`span.stat.grow:nth-of-type(4)`)
-                    .childNodes[0].textContent.replace(/,/g, ``),
-                trophiesPerDay: +doc.querySelector(`span.stat.grow:nth-of-type(5)`).childNodes[0].textContent,
-                views: +doc
-                    .querySelector(`span.stat.grow:nth-of-type(6)`)
-                    .childNodes[0].textContent.replace(/,/g, ``),
-            };
-            this.numPages = Math.ceil(this.stats.gamesPlayed / 100);
-            this.rarestTrophies = (() => {
-                const h3 = [...doc.querySelectorAll(`#content div.sidebar.col-xs-4 div.title.flex.v-align h3`)].find(h3 => h3.textContent === 'Rarest Trophies');
-                const t = [
-                    ...h3?.closest(`div.title.flex.v-align`)?.nextElementSibling?.querySelectorAll('table tr'),
-                ].map(el => {
-                    return {};
-                });
-                console.log(t);
-            })();
-        }
-        static #stayOnPage(e) {
-            // Cancel the event as stated by the standard.
-            e.preventDefault();
-            // Chrome requires returnValue to be set.
-            e.returnValue = ``;
-            return ``;
-        }
-        /** Parses user's profile and caches all their games so that the data can be quickly accessed anytime. */
-        static async cacheGames() {
-            const profile = new PSNProfile();
-            let done = false, updatedGames = [], unchangedGames = [], numNew = 0, parsed = 0;
-            if (_settings.games.size < profile.stats.gamesPlayed) {
-                window.addEventListener(`beforeunload`, this.#stayOnPage);
-            }
-            for (let i = 1; i <= profile.numPages && !done; i++) {
-                const doc = i === 1
-                    ? document
-                    : await (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.fetchDoc)(`https://psnprofiles.com/${_settings.psnId}?completion=all&order=last-played&pf=all&page=${i}`), nodes = _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"].getNodes(doc);
-                for (let j = 0; j < nodes.length; j++) {
-                    // const num = (j + 1) + (100 * (i - 1));
-                    const game = new _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"](nodes[j]), stored = _settings.games.get(game.id);
-                    parsed++;
-                    if (!stored) {
-                        numNew++;
-                        _settings.games.set(game.id, game);
-                    }
-                    else {
-                        const unchanged = game.percent === stored.percent &&
-                            game.stack === stored.stack &&
-                            game.rarityBase === stored.rarityBase &&
-                            game.rarityFull === stored.rarityFull;
-                        /** If game looks to be already cached, stop updating after current page (considering late syncs). */
-                        if (unchanged) {
-                            unchangedGames.push(game);
-                            /** A rare PSNP bug displays the same game twice, so this prevents stopping prematurely. */
-                            if (unchangedGames.length >= 2) {
-                                done = true;
-                            }
-                            continue;
-                        }
-                        else {
-                            _settings.games.set(game.id, game);
-                            const diff = { old: stored, new: game };
-                            updatedGames.push(diff);
-                        }
-                    }
-                }
-                console.log(`${i}/${profile.numPages} pages parsed`);
-            }
-            await _settings.save();
-            console.log(`Parsed ${parsed} games: ${numNew} new, ${updatedGames.length} updated, ${parsed - numNew - updatedGames.length} unchanged. (${_settings.games.size} in cache)`);
-            if (updatedGames.length)
-                console.log(updatedGames);
-            window.removeEventListener(`beforeunload`, this.#stayOnPage);
-        }
-        /** Parses user's profile and shows only the games that stack, and how many stacks the user has completed. Shows only 1 game per set of stacks. */
-        static async stackify() {
-            this.remove();
-            /** Collection of Games to dictate whether a game page should be visited.
-             * @type {Map<number, Game>}  */
-            const parsed = new Map(), profile = new PSNProfile();
-            // Prepping the DOM
-            window.addEventListener(`scroll`, function (e) {
-                e.stopPropagation();
-            }, true);
-            document.querySelector(`#load-more`)?.remove();
-            _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"].getNodes().forEach(g => g.remove());
-            for (let i = 1; i <= profile.numPages; i++) {
-                const doc = await (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.fetchDoc)(`https://psnprofiles.com/${profile.psnId}?completion=all&order=last-played&pf=all&page=${i}`), gameNodes = _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"].getNodes(doc);
-                for (let j = 0; j < gameNodes.length; j++) {
-                    const game = new _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"](gameNodes[j]), stacks = { total: 0, completed: 0, games: [game], str: ``, color: `` };
-                    if (parsed.get(game.id) ||
-                        game?.stack === false ||
-                        (_settings.prefs.platify.val && !game.hasPlat)) {
-                        continue;
-                    }
-                    // Parse stack info for current game
-                    stacks.total++;
-                    if (_settings.games.isCompleted(game.id)) {
-                        stacks.completed++;
-                    }
-                    parsed.set(game.id, game);
-                    // Visit game page to parse its stacks, if any
-                    const gamePage = await (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.fetchDoc)(game.url);
-                    new _modules_trophies__WEBPACK_IMPORTED_MODULE_1__.TrophyList(gamePage).stacks.forEach(s => {
-                        const stack = new _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"](s);
-                        stacks.games.push(stack);
-                        stacks.total++;
-                        if (_settings.games.isCompleted(stack.id)) {
-                            stacks.completed++;
-                        }
-                        parsed.set(stack.id, stack);
-                    });
-                    // Update stack data (even if just to say the initial game has none)
-                    stacks.games.forEach(g => {
-                        const stored = _settings.games.get(g.id);
-                        if (stored) {
-                            stored.stack = stacks.total > 1;
-                            _settings.games.set(stored.id, stored);
-                        }
-                    });
-                    await _settings.save();
-                    // Building & appending element
-                    if (stacks.games.length === 1) {
-                        continue;
-                    }
-                    stacks.str = `(${stacks.completed}/${stacks.total})`;
-                    stacks.color = stacks.completed === stacks.total ? `green` : `red`;
-                    const el = (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`span`, { class: `stackify`, style: `color:${stacks.color}; font-weight:500;` }, stacks.str);
-                    game.el.querySelector(`a.title`).closest(`span`).appendChild(el);
-                    table.appendChild(game.el);
-                }
-            }
-        }
-        /** Parses another user's profile and shows only the games that you don't own. */
-        static async envy() {
-            this.remove();
-            const profile = new PSNProfile();
-            // Prepping the DOM
-            window.addEventListener(`scroll`, function (e) {
-                e.stopPropagation();
-            }, true);
-            document.querySelector(`#load-more`)?.remove();
-            _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"].getNodes().forEach(g => g.remove());
-            // Check for filters/params
-            const qp = {
-                completion: sp.get(`completion`) || `all`,
-                order: sp.get(`order`) || `last-played`,
-                pf: sp.get(`pf`) || `all`,
-            };
-            for (let i = 1; i <= profile.numPages; i++) {
-                const url = `https://psnprofiles.com/${profile.psnId}?completion=${qp.completion}&order=${qp.order}&pf=${qp.pf}&page=${i}`, doc = await (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.fetchDoc)(url), gameNodes = _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"].getNodes(doc);
-                for (let j = 0; j < gameNodes.length; j++) {
-                    const game = new _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"](gameNodes[j]);
-                    if (!_settings.games.has(game.id)) {
-                        table.appendChild(game.el);
-                    }
-                }
-                monitorGames();
-            }
-        }
-    }
-    /** @param {Game} game */
-    function buildGame(game) {
-        let completion, // platinum|completed
-        srcset, playedDate;
-        const el = (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`tr`, { class: completion }, (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`td`, { style: `width: 1%;` }, (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`a`, { href: `/trophies/${game._pathKey}/${_settings.psnId}`, rel: `nofollow` }, (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`picture`, { class: `game`, alt: game.name }, (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`src`, { srcset: srcset }), (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`img`, { src: game.src })))), (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`td`, { style: `width: 100%;` }, (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`div`, { class: `ellipsis` }, (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`span`, {}, (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`a`, {
-            class: `title`,
-            href: `/trophies/${game._pathKey}/${_settings.psnId}`,
-            rel: `nofollow`,
-        }, game.name), (() => {
-            //conditional bullet + text node (for stacks)
-        })())), (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`div`, { class: `small-info`, style: `margin-top: 4px;` }
-        /** TODO */
-        ), (() => playedDate
-            ? (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`div`, { class: `small-info`, style: `margin-top: 4px;` }, ` 28`, (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`sup`, {}, `th`), ` March 2022`)
-            : null)()), (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`td`, {}), (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`td`, {}), (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`td`, {}), (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`td`, {}));
-        return el;
-    }
-    games = _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"].getNodes().map(g => new _modules_game__WEBPACK_IMPORTED_MODULE_3__["default"](g));
-    const anchor = document.querySelector(`#content div.col-xs-8 div.grow`), btnStackify = (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`a`, {
-        href: `javascript:void(0);`,
-        id: `btnStackify`,
-        title: `Evaluates and marks your stack progress for all loaded games`,
-        style: `background:#64a75c; color: #fff; font-weight:500; text-transform:none; display:inline-block; font-family:'Roboto', Arial, Verdana, sans-serif;` +
-            `text-align:center; padding:4px 8px 4px 8px; border-radius: 2px; white-space:nowrap; margin-right: 20px; font-size:14px;`,
-    }, `Stackify`);
-    const profile = new PSNProfile();
-    /******************************************************************************************************************************
-                                                                OWN PROFILE
-    ******************************************************************************************************************************/
-    if (viewingAnyProfile && location.pathname === `/${_settings.psnId}`) {
-        // Shows stack progress
-        anchor.appendChild(btnStackify);
-        btnStackify.addEventListener(`click`, PSNProfile.stackify);
-        // If flagged, hide red panel
-        if (_settings.prefs.flagged.val) {
-            (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.waitForEl)(`div.red`).then(el => {
-                el.nextElementSibling.remove();
-                el.remove();
-            });
-        }
-        // Cache any new games
-        await PSNProfile.cacheGames();
-        // Distinct Rarest
-        // if (_settings.prefs.rarestTrophiesDistinct.val) {
-        // 	console.log('distinct rarest');
-        // 	console.log(profile.rarestTrophies);
-        // }
-        // Add dropdown
-        /** @type {HTMLUListElement} */
-        const dropdown_order = document.querySelector(`#content div.col-xs-8 > div.title div.dropdown > a.order`)?.nextElementSibling;
-        const times = Array.from(_settings.games.values())
-            .filter(game => game.speed)
-            .sort((a, b) => a.speed - b.speed);
-    }
-    else {
-        /******************************************************************************************************************************
-                                                                OTHER PROFILE
-        ******************************************************************************************************************************/
-        const btnEnvy = btnStackify.cloneNode(true);
-        btnEnvy.textContent = `Envy`;
-        btnEnvy.setAttribute(`id`, `btnEnvy`);
-        btnEnvy.setAttribute(`title`, `Shows only the games you don't own.`);
-        anchor.appendChild(btnEnvy);
-        btnEnvy.addEventListener(`click`, PSNProfile.envy);
-        monitorGames(2000);
-    }
 }
 /** GAMES[?q=] */
 function onGames() {
@@ -3741,7 +3491,8 @@ async function on100Club() {
     }, 800);
 }
 function onSeriesCatalog() {
-    const table = (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.getGamesTableBody)(), infoDiv = (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`div`, {
+    const table = _page.gamesTableBody;
+    const infoDiv = (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`div`, {
         style: `display: inline-block; padding:4px 8px 4px 8px; width:200px; color:white; font-weight:500; margin-right:10px;`,
     }, (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`span`, { id: `numLoaded`, style: `margin-right: 30px;` }), (0,_modules_util__WEBPACK_IMPORTED_MODULE_2__.newElement)(`span`, { id: `numHidden`, style: `` }));
     createLoadAllPagesBtn(cbSeries);
@@ -3967,6 +3718,299 @@ async function createLoadAllPagesBtn(cb) {
 
 __webpack_async_result__();
 } catch(e) { __webpack_async_result__(e); } }, 1);
+
+/***/ }),
+
+/***/ "./src/modules/Profile.ts":
+/***/ ((module, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.a(module, async (__webpack_handle_async_dependencies__, __webpack_async_result__) => { try {
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ Profile)
+/* harmony export */ });
+/* harmony import */ var _trophies__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__("./src/modules/trophies.ts");
+/* harmony import */ var _util__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__("./src/modules/util.ts");
+/* harmony import */ var _game__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__("./src/modules/game.ts");
+/* harmony import */ var ___WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__("./src/index.ts");
+var __webpack_async_dependencies__ = __webpack_handle_async_dependencies__([___WEBPACK_IMPORTED_MODULE_3__]);
+___WEBPACK_IMPORTED_MODULE_3__ = (__webpack_async_dependencies__.then ? (await __webpack_async_dependencies__)() : __webpack_async_dependencies__)[0];
+
+
+
+
+/** PROFILE[?search=] */
+async function Profile(_settings, _page) {
+    class PSNProfile {
+        psnId;
+        stats;
+        numPages;
+        rarestTrophies;
+        constructor(doc = document) {
+            this.psnId = doc.querySelector(`div#user-bar span.username`).textContent.trim();
+            this.stats = {
+                gamesPlayed: +doc
+                    .querySelector(`span.stat.grow:nth-of-type(1)`)
+                    .childNodes[0].textContent.replace(/,/g, ``),
+                gamesCompleted: +doc
+                    .querySelector(`span.stat.grow:nth-of-type(2)`)
+                    .childNodes[0].textContent.replace(/,/g, ``),
+                completion: +doc
+                    .querySelector(`span.stat.grow:nth-of-type(3)`)
+                    .childNodes[0].textContent.replace(`%`, ``),
+                unearnedTrophies: +doc
+                    .querySelector(`span.stat.grow:nth-of-type(4)`)
+                    .childNodes[0].textContent.replace(/,/g, ``),
+                trophiesPerDay: +doc.querySelector(`span.stat.grow:nth-of-type(5)`).childNodes[0].textContent,
+                views: +doc
+                    .querySelector(`span.stat.grow:nth-of-type(6)`)
+                    ?.childNodes[0].textContent.replace(/,/g, ``),
+            };
+            this.numPages = Math.ceil(this.stats.gamesPlayed / 100);
+            this.rarestTrophies = (() => {
+                const h3 = [...doc.querySelectorAll(`#content div.sidebar.col-xs-4 div.title.flex.v-align h3`)].find(h3 => h3.textContent === 'Rarest Trophies');
+                const t = [
+                    ...h3?.closest(`div.title.flex.v-align`)?.nextElementSibling?.querySelectorAll('table tr'),
+                ].map(el => {
+                    return {};
+                });
+                console.log(t);
+                return t;
+            })();
+        }
+        static #stayOnPage(e) {
+            // Cancel the event as stated by the standard.
+            e.preventDefault();
+            // Chrome requires returnValue to be set.
+            e.returnValue = ``;
+            return ``;
+        }
+        /** Parses user's profile and caches all their games so that the data can be quickly accessed anytime. */
+        static async cacheGames() {
+            const profile = new PSNProfile();
+            let done = false, updatedGames = [], unchangedGames = [], numNew = 0, parsed = 0;
+            if (_settings.games.size < profile.stats.gamesPlayed) {
+                window.addEventListener(`beforeunload`, this.#stayOnPage);
+            }
+            for (let i = 1; i <= profile.numPages && !done; i++) {
+                const doc = i === 1
+                    ? document
+                    : await (0,_util__WEBPACK_IMPORTED_MODULE_1__.fetchDoc)(`https://psnprofiles.com/${_settings.psnId}?completion=all&order=last-played&pf=all&page=${i}`), nodes = _game__WEBPACK_IMPORTED_MODULE_2__["default"].getNodes(doc);
+                for (let j = 0; j < nodes.length; j++) {
+                    // const num = (j + 1) + (100 * (i - 1));
+                    const game = new _game__WEBPACK_IMPORTED_MODULE_2__["default"](nodes[j]), stored = _settings.games.get(game.id);
+                    parsed++;
+                    if (!stored) {
+                        numNew++;
+                        _settings.games.set(game.id, game);
+                    }
+                    else {
+                        const unchanged = game.percent === stored.percent &&
+                            game.stack === stored.stack &&
+                            game.rarityBase === stored.rarityBase &&
+                            game.rarityFull === stored.rarityFull;
+                        /** If game looks to be already cached, stop updating after current page (considering late syncs). */
+                        if (unchanged) {
+                            unchangedGames.push(game);
+                            /** A rare PSNP bug displays the same game twice, so this prevents stopping prematurely. */
+                            if (unchangedGames.length >= 2) {
+                                done = true;
+                            }
+                            continue;
+                        }
+                        else {
+                            _settings.games.set(game.id, game);
+                            const diff = { old: stored, new: game };
+                            updatedGames.push(diff);
+                        }
+                    }
+                }
+                console.log(`${i}/${profile.numPages} pages parsed`);
+            }
+            await _settings.save();
+            console.log(`Parsed ${parsed} games: ${numNew} new, ${updatedGames.length} updated, ${parsed - numNew - updatedGames.length} unchanged. (${_settings.games.size} in cache)`);
+            if (updatedGames.length)
+                console.log(updatedGames);
+            window.removeEventListener(`beforeunload`, this.#stayOnPage);
+        }
+        /** Parses user's profile and shows only the games that stack, and how many stacks the user has completed. Shows only 1 game per set of stacks. */
+        static async stackify() {
+            console.time('Stackify');
+            this.remove();
+            const profile = new PSNProfile();
+            // Prepping the DOM
+            window.addEventListener(`scroll`, function (e) {
+                e.stopPropagation();
+            }, true);
+            document.querySelector(`#load-more`)?.remove();
+            _game__WEBPACK_IMPORTED_MODULE_2__["default"].getNodes().forEach(g => g.remove());
+            const lazyCheck = true; // TODO: Let user choose on the fly.
+            const parsedGames = new Map();
+            for (let i = 1; i <= profile.numPages; i++) {
+                const doc = await (0,_util__WEBPACK_IMPORTED_MODULE_1__.fetchDoc)(`https://psnprofiles.com/${profile.psnId}?completion=all&order=last-played&pf=all&page=${i}`);
+                const gamesOnPage = _game__WEBPACK_IMPORTED_MODULE_2__["default"].getNodes(doc).map(g => new _game__WEBPACK_IMPORTED_MODULE_2__["default"](g));
+                for (const game of gamesOnPage) {
+                    const stored = _settings.games.get(game.id);
+                    let stackData = _settings.stacks.find(x => x.games.find(g => g.id === game.id));
+                    let numCompleted = 0, numTotal = 0;
+                    if (parsedGames.get(game.id))
+                        continue;
+                    else if (stackData && lazyCheck) {
+                        // use cached data
+                    }
+                    else if (stackData) {
+                        // re-check and update stack data (i.e. number of stacks)
+                        const fetchedStacks = await fetchStacks(game.url);
+                        if (fetchedStacks.length + 1 !== stackData.games.length) {
+                            stackData.games = [game, ...fetchedStacks];
+                            stackData.lastUpdated = Date.now();
+                        }
+                    }
+                    else {
+                        // create stack data
+                        const fetchedStacks = await fetchStacks(game.url);
+                        stackData = {
+                            games: [game, ...fetchedStacks],
+                            lastUpdated: Date.now(),
+                        };
+                        _settings.stacks.push(stackData);
+                    }
+                    stackData.games.forEach(g => {
+                        parsedGames.set(g.id, g);
+                        numTotal++;
+                        if (_settings.games.isCompleted(g.id))
+                            numCompleted++;
+                    });
+                    async function fetchStacks(url) {
+                        const stacks = [];
+                        const gamePage = await (0,_util__WEBPACK_IMPORTED_MODULE_1__.fetchDoc)(url);
+                        for (const stackNode of new _trophies__WEBPACK_IMPORTED_MODULE_0__.TrophyList(gamePage).stacks) {
+                            const stack = new _game__WEBPACK_IMPORTED_MODULE_2__["default"](stackNode);
+                            stacks.push(stack);
+                        }
+                        return stacks;
+                    }
+                    // Update stack data (even if just to say the initial game has none)
+                    // stacks.games.forEach(g => {
+                    // 	const stored = _settings.games.get(g.id);
+                    // 	if (stored) {
+                    // 		stored.stack = stacks.total > 1;
+                    // 		_settings.games.set(stored.id, stored);
+                    // 	}
+                    // });
+                    await _settings.save();
+                    // Building & appending element
+                    if (stackData.games.length === 1 ||
+                        (_settings.prefs.stackifyHideCompleted.val && numCompleted === numTotal)) {
+                        continue;
+                    }
+                    const str = `(${numCompleted}/${numTotal})`;
+                    const color = numCompleted === numTotal ? `green` : `red`;
+                    const el = (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`span`, { class: `stackify`, style: `color:${color}; font-weight:500;` }, str);
+                    game.el.querySelector(`a.title`).closest(`span`).appendChild(el);
+                    _page.gamesTableBody?.appendChild(game.el);
+                }
+            }
+            console.timeEnd('Stackify');
+        }
+        /** Parses another user's profile and shows only the games that you don't own. */
+        static async envy() {
+            this.remove();
+            const profile = new PSNProfile();
+            // Prepping the DOM
+            window.addEventListener(`scroll`, function (e) {
+                e.stopPropagation();
+            }, true);
+            document.querySelector(`#load-more`)?.remove();
+            _game__WEBPACK_IMPORTED_MODULE_2__["default"].getNodes().forEach(g => g.remove());
+            // Check for filters/params
+            const qp = {
+                completion: _page.sp.get(`completion`) || `all`,
+                order: _page.sp.get(`order`) || `last-played`,
+                pf: _page.sp.get(`pf`) || `all`,
+            };
+            for (let i = 1; i <= profile.numPages; i++) {
+                const url = `https://psnprofiles.com/${profile.psnId}?completion=${qp.completion}&order=${qp.order}&pf=${qp.pf}&page=${i}`, doc = await (0,_util__WEBPACK_IMPORTED_MODULE_1__.fetchDoc)(url), gameNodes = _game__WEBPACK_IMPORTED_MODULE_2__["default"].getNodes(doc);
+                for (let j = 0; j < gameNodes.length; j++) {
+                    const game = new _game__WEBPACK_IMPORTED_MODULE_2__["default"](gameNodes[j]);
+                    if (!_settings.games.has(game.id)) {
+                        _page.gamesTableBody?.appendChild(game.el);
+                    }
+                }
+                (0,___WEBPACK_IMPORTED_MODULE_3__.monitorGames)();
+            }
+        }
+    }
+    /** @param {Game} game */
+    function buildGame(game) {
+        let completion, // platinum|completed
+        srcset, playedDate;
+        const el = (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`tr`, { class: completion }, (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`td`, { style: `width: 1%;` }, (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`a`, { href: `/trophies/${game._pathKey}/${_settings.psnId}`, rel: `nofollow` }, (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`picture`, { class: `game`, alt: game.name }, (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`src`, { srcset: srcset }), (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`img`, { src: game.src })))), (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`td`, { style: `width: 100%;` }, (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`div`, { class: `ellipsis` }, (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`span`, {}, (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`a`, {
+            class: `title`,
+            href: `/trophies/${game._pathKey}/${_settings.psnId}`,
+            rel: `nofollow`,
+        }, game.name), (() => {
+            //conditional bullet + text node (for stacks)
+        })())), (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`div`, { class: `small-info`, style: `margin-top: 4px;` }
+        /** TODO */
+        ), (() => playedDate
+            ? (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`div`, { class: `small-info`, style: `margin-top: 4px;` }, ` 28`, (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`sup`, {}, `th`), ` March 2022`)
+            : null)()), (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`td`, {}), (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`td`, {}), (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`td`, {}), (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`td`, {}));
+        return el;
+    }
+    const games = _game__WEBPACK_IMPORTED_MODULE_2__["default"].getNodes().map(g => new _game__WEBPACK_IMPORTED_MODULE_2__["default"](g));
+    const anchor = document.querySelector(`#content div.col-xs-8 div.grow`), btnStackify = (0,_util__WEBPACK_IMPORTED_MODULE_1__.newElement)(`a`, {
+        href: `javascript:void(0);`,
+        id: `btnStackify`,
+        title: `Evaluates and marks your stack progress for all loaded games`,
+        style: `background:#64a75c; color: #fff; font-weight:500; text-transform:none; display:inline-block; font-family:'Roboto', Arial, Verdana, sans-serif;` +
+            `text-align:center; padding:4px 8px 4px 8px; border-radius: 2px; white-space:nowrap; margin-right: 20px; font-size:14px;`,
+    }, `Stackify`);
+    const profile = new PSNProfile();
+    /******************************************************************************************************************************
+                                                                OWN PROFILE
+    ******************************************************************************************************************************/
+    if (location.pathname === `/${_settings.psnId}`) {
+        // Shows stack progress
+        anchor.appendChild(btnStackify);
+        btnStackify.addEventListener(`click`, PSNProfile.stackify);
+        // If flagged, hide red panel
+        if (_settings.prefs.flagged.val) {
+            (0,_util__WEBPACK_IMPORTED_MODULE_1__.waitForEl)(`div.red`).then(el => {
+                el.nextElementSibling.remove();
+                el.remove();
+            });
+        }
+        // Cache any new games
+        await PSNProfile.cacheGames();
+        // Distinct Rarest
+        // if (_settings.prefs.rarestTrophiesDistinct.val) {
+        // 	console.log('distinct rarest');
+        // 	console.log(profile.rarestTrophies);
+        // }
+        // Add dropdown
+        /** @type {HTMLUListElement} */
+        const dropdown_order = document.querySelector(`#content div.col-xs-8 > div.title div.dropdown > a.order`)?.nextElementSibling;
+        const times = Array.from(_settings.games.values())
+            .filter(game => game.speed)
+            .sort((a, b) => a.speed - b.speed);
+    }
+    else {
+        /******************************************************************************************************************************
+                                                                OTHER PROFILE
+        ******************************************************************************************************************************/
+        const btnEnvy = btnStackify.cloneNode(true);
+        btnEnvy.textContent = `Envy`;
+        btnEnvy.setAttribute(`id`, `btnEnvy`);
+        btnEnvy.setAttribute(`title`, `Shows only the games you don't own.`);
+        anchor.appendChild(btnEnvy);
+        btnEnvy.addEventListener(`click`, PSNProfile.envy);
+        (0,___WEBPACK_IMPORTED_MODULE_3__.monitorGames)(2000);
+    }
+}
+
+__webpack_async_result__();
+} catch(e) { __webpack_async_result__(e); } });
 
 /***/ }),
 
@@ -4608,6 +4652,11 @@ const Prefs = {
         name: `Hide Multiplatform From Filtered`,
         desc: `Hides multiplatform games from the 'Games' page when a platform filter is applied`,
     },
+    stackifyHideCompleted: {
+        val: false,
+        name: `Stackify - Hide Completed`,
+        desc: `Doesn't show games for which you've completed all stacks.`,
+    },
     // rarestTrophiesDistinct: {
     // 	val: false,
     // 	name: `Distinct 'Rarest Trophies' games`,
@@ -4619,6 +4668,7 @@ class Settings {
     psnId;
     games;
     prefs;
+    stacks;
     /** Returns array of instance properties (listed above) */
     static get keys() {
         return Object.getOwnPropertyNames(new Settings());
@@ -4636,6 +4686,7 @@ class Settings {
         this.psnId = data?.psnId ?? '';
         this.prefs = data?.prefs ?? Prefs;
         this.games = data ? new GameMap(this, data?.games ?? []) : new GameMap(this);
+        this.stacks = data?.stacks ?? [];
     }
     /** Loads (asynchronous) settings from instance's keys, then returns a Settings object. */
     static async init() {
@@ -5022,16 +5073,61 @@ class TrophyList {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "CopyCheckbox": () => (/* binding */ CopyCheckbox),
+/* harmony export */   "Page": () => (/* binding */ Page),
 /* harmony export */   "assignSharedProps": () => (/* binding */ assignSharedProps),
-/* harmony export */   "colorLog": () => (/* binding */ colorLog),
 /* harmony export */   "copyToClipboard": () => (/* binding */ copyToClipboard),
 /* harmony export */   "fetchDoc": () => (/* binding */ fetchDoc),
-/* harmony export */   "getGamesTableBody": () => (/* binding */ getGamesTableBody),
 /* harmony export */   "isObject": () => (/* binding */ isObject),
 /* harmony export */   "newElement": () => (/* binding */ newElement),
 /* harmony export */   "sleep": () => (/* binding */ sleep),
 /* harmony export */   "waitForEl": () => (/* binding */ waitForEl)
 /* harmony export */ });
+class Page {
+    w;
+    url;
+    sp;
+    constructor(w = window) {
+        this.w = w;
+        this.url = new URL(w.location.href);
+        this.sp = new URLSearchParams(w.location.search);
+    }
+    get site() {
+        switch (this.url.hostname) {
+            case `psnprofiles.com`:
+                return `PSNP`;
+            case `forum.psnprofiles.com`:
+                return `PSNPf`;
+            case `www.trueachievements.com`:
+                return `TA`;
+            case `www.truetrophies.com`:
+                return `TT`;
+            default:
+                return;
+        }
+    }
+    get pageType() {
+        switch (this.site) {
+            case 'PSNP':
+                switch (this.url.pathname) {
+                    case `/series`:
+                        return 'series catalog';
+                    default:
+                        return 'generic';
+                }
+            case 'PSNPf':
+                if (this.url.pathname.split(`/`).at(1) === `topic`)
+                    return 'thread';
+                if (this.url.pathname.split(`/`).at(1) === `forum`)
+                    return 'subforum';
+            default:
+                return;
+        }
+    }
+    /** Returns the \<tbody\> that holds the games on the current (or passed) page. */
+    get gamesTableBody() {
+        return this.w.document.querySelector(`:is(#search-results tbody, #game_list > tbody, #gamesTable > tbody)`);
+    }
+}
 function newElement(tagname, attributes, ...children) {
     const el = document.createElement(tagname);
     for (const key in attributes) {
@@ -5046,14 +5142,6 @@ function newElement(tagname, attributes, ...children) {
         }
     });
     return el;
-}
-/** Returns the \<tbody\> that holds the games on the current (or passed) page. */
-function getGamesTableBody(doc = document) {
-    return doc.querySelector(`:is(#search-results tbody, #game_list > tbody, #gamesTable > tbody)`);
-}
-/** console.debug() with color. */
-function colorLog(text, color) {
-    console.debug(`%c${text}`, `color: ${color}`);
 }
 /** Fetches a URL and returns the parsed HTML Document.
  * @param {string} url
@@ -5073,11 +5161,7 @@ function copyToClipboard(text) {
 }
 /** Returns true if `x` is a pure object, otherwise false if it's a primitive/null/array/function/Map/Set. */
 function isObject(x) {
-    return (typeof x === `object` &&
-        x !== null &&
-        !Array.isArray(x) &&
-        !(x instanceof Map) &&
-        !(x instanceof Set));
+    return typeof x === `object` && x !== null && !Array.isArray(x) && !(x instanceof Map) && !(x instanceof Set);
 }
 /** Assigns all mutual enumerable properties of `source` to `target`. */
 function assignSharedProps(target, source) {
@@ -5304,7 +5388,7 @@ class CopyCheckbox {
 /******/ 	
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
-/******/ 	// This entry module used 'module' so it can't be inlined
+/******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	var __webpack_exports__ = __webpack_require__("./src/index.ts");
 /******/ 	
 /******/ })()
