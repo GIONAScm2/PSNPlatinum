@@ -4,7 +4,7 @@
 // @run-at       document-start
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
 // @description  An otaku's take on enhancing PSNP.
-// @version      3.0.1
+// @version      3.0.2
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js	
 // @match        https://*.psnprofiles.com/*
@@ -3898,7 +3898,6 @@ async function Profile(_settings, _page) {
                     // 		_settings.games.set(stored.id, stored);
                     // 	}
                     // });
-                    await _settings.save();
                     // Building & appending element
                     if (stackData.games.length === 1 ||
                         (_settings.prefs.stackifyHideCompleted.val && numCompleted === numTotal)) {
@@ -3911,6 +3910,7 @@ async function Profile(_settings, _page) {
                     _page.gamesTableBody?.appendChild(game.el);
                 }
             }
+            await _settings.save();
             console.timeEnd('Stackify');
         }
         /** Parses another user's profile and shows only the games that you don't own. */
