@@ -4,7 +4,7 @@
 // @run-at       document-start
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
 // @description  Improves PSNProfiles so Sly doesn't have to.
-// @version      3.1.2
+// @version      3.1.3
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js	
 // @match        https://*.psnprofiles.com/*
@@ -3331,8 +3331,11 @@ const sp = _modules_util__WEBPACK_IMPORTED_MODULE_2__._page.sp; //temp until ref
 console.time('Settings Loaded');
 const _settings = await _modules_settings__WEBPACK_IMPORTED_MODULE_0__["default"].init();
 console.timeEnd('Settings Loaded');
-// _settings.stacks = [];
-// await _settings.save();
+console.log(`PSN ID: ${_settings.psnId}`);
+// if (!_settings.psnId) {
+// console.log('authenticating with PSN...')
+// await authenticate();
+// }
 _modules_settings__WEBPACK_IMPORTED_MODULE_0__._load.userBar.then(el => {
     _settings.appendSettingsMenu();
 });
@@ -4877,7 +4880,7 @@ class Settings {
         // If no PSN ID was loaded, try to scrape it off DOM
         if (!settings.psnId) {
             console.warn('No PSN ID loaded; checking loggedIn element...');
-            settings.psnId = await Settings.getLoggedInPsnId();
+            // settings.psnId = await Settings.getLoggedInPsnId();
         }
         // Save and return populated settings
         await settings.save();
@@ -4885,6 +4888,8 @@ class Settings {
     }
     static async getLoggedInPsnId() {
         const userBar = await _load.userBar;
+        console.log(`user bar:`);
+        console.log(userBar);
         return userBar?.textContent?.trim() ?? '';
     }
     /** Saves user settings to localStorage. */
@@ -5314,43 +5319,53 @@ function newElement(tagname, attributes, ...children) {
     });
     return el;
 }
-/** To replace `fetchDoc()` */
+/**
+ * Performs either a standard `fetch()` or a special `GM.xmlHttpRequest()` that bypasses CORS, depending on the passed parameters.
+ * @param input URL string (`fetch()`) or _ ()
+ * @param opts (Optional) `fetch()` options
+ */
 async function _fetch(input, opts) {
     try {
         if (typeof input === 'string') {
             const res = await fetch(input, opts);
+            const url = res.url;
             const doc = new DOMParser().parseFromString(await res.text(), `text/html`);
             return {
+                tm: null,
+                res,
+                url,
                 doc,
-                url: res.url,
             };
         }
         else {
-            return new Promise(resolve => {
-                GM.xmlHttpRequest({
+            return new Promise((resolve, reject) => {
+                const opts = {
+                    method: 'GET',
+                    ...input,
                     url: input.url,
-                    method: input.method ?? 'GET',
-                    context: input.context,
                     onload: res => {
+                        res.context?.after();
                         if (res.readyState === 4) {
-                            console.log(res);
-                            console.log(res.response);
-                            console.log(JSON.parse(res.response));
+                            // console.log(res)
+                            // console.log(res.response)
                             const doc = new DOMParser().parseFromString(res.responseText, 'text/html');
-                            console.log(doc);
-                            resolve({
-                                doc,
-                                url: res.finalUrl,
-                            });
                         }
+                        resolve({
+                            tm: res,
+                            res: res.response,
+                            url: res.finalUrl,
+                            doc: null,
+                        });
                     },
-                });
+                };
+                GM.xmlHttpRequest(opts);
             });
         }
     }
     catch (err) {
         console.log(`Error while fetching`);
         console.error(err);
+        return;
     }
 }
 /** Fetches a URL and returns the parsed HTML Document.
