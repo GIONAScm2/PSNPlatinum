@@ -4238,12 +4238,15 @@ class Game extends _psnp_util__WEBPACK_IMPORTED_MODULE_1__["default"] {
         const numPlatforms = Object.keys(stacksByPlatform).length;
         // THEN we iterate through each platform to assess its `StackAbbr`s and relabel `this.stack` accordingly, and assign a core `stackString`
         for (const [platform, games] of Object.entries(stacksByPlatform)) {
-            // Whatever the case may be, this game shouldn't have a `StackAbbr`.
             if (games.length === 1) {
                 const g = games.at(0);
-                if (typeof g.stack !== 'string')
+                if (!g.stack || typeof g.stack !== 'string') {
                     g.stack = true;
-                g.stackString = g.platformString;
+                    g.stackString = g.platformString;
+                }
+                else {
+                    g.stackString = g.platformString + ` (${g.stack})`;
+                }
                 continue;
             }
             const someStackAbbrs = games.some(g => typeof g.stack === 'string');
@@ -5239,6 +5242,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "CopyCheckbox": () => (/* binding */ CopyCheckbox),
 /* harmony export */   "Page": () => (/* binding */ Page),
+/* harmony export */   "_fetch": () => (/* binding */ _fetch),
 /* harmony export */   "_page": () => (/* binding */ _page),
 /* harmony export */   "assignSharedProps": () => (/* binding */ assignSharedProps),
 /* harmony export */   "copyToClipboard": () => (/* binding */ copyToClipboard),
@@ -5309,6 +5313,45 @@ function newElement(tagname, attributes, ...children) {
         }
     });
     return el;
+}
+/** To replace `fetchDoc()` */
+async function _fetch(input, opts) {
+    try {
+        if (typeof input === 'string') {
+            const res = await fetch(input, opts);
+            const doc = new DOMParser().parseFromString(await res.text(), `text/html`);
+            return {
+                doc,
+                url: res.url,
+            };
+        }
+        else {
+            return new Promise(resolve => {
+                GM.xmlHttpRequest({
+                    url: input.url,
+                    method: input.method ?? 'GET',
+                    context: input.context,
+                    onload: res => {
+                        if (res.readyState === 4) {
+                            console.log(res);
+                            console.log(res.response);
+                            console.log(JSON.parse(res.response));
+                            const doc = new DOMParser().parseFromString(res.responseText, 'text/html');
+                            console.log(doc);
+                            resolve({
+                                doc,
+                                url: res.finalUrl,
+                            });
+                        }
+                    },
+                });
+            });
+        }
+    }
+    catch (err) {
+        console.log(`Error while fetching`);
+        console.error(err);
+    }
 }
 /** Fetches a URL and returns the parsed HTML Document.
  * @param {string} url
