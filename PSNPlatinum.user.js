@@ -4,7 +4,7 @@
 // @run-at       document-start
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
 // @description  Improves PSNProfiles so Sly doesn't have to.
-// @version      3.1.4
+// @version      3.1.5
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js	
 // @match        https://*.psnprofiles.com/*
@@ -4298,6 +4298,7 @@ class Game extends _psnp_util__WEBPACK_IMPORTED_MODULE_1__["default"] {
         let numCompleted = 0, numTotal = 0;
         // CASE 2: Lazy check (WIP)
         if (stackData && lazyCheck) {
+            Game.labelStacks(stackData.games);
         }
         // CASE 3: Fetch latest stack data to update existing data.
         else if (stackData) {
