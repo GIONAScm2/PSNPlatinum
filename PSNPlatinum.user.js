@@ -4,7 +4,7 @@
 // @run-at       document-start
 // @namespace    https://github.com/GIONAScm2/PSNPlatinum
 // @description  Improves PSNProfiles so Sly doesn't have to.
-// @version      3.1.3
+// @version      3.1.4
 // @downloadURL  https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js
 // @updateURL    https://github.com/GIONAScm2/PSNPlatinum/raw/main/PSNPlatinum.user.js	
 // @match        https://*.psnprofiles.com/*
@@ -3331,11 +3331,8 @@ const sp = _modules_util__WEBPACK_IMPORTED_MODULE_2__._page.sp; //temp until ref
 console.time('Settings Loaded');
 const _settings = await _modules_settings__WEBPACK_IMPORTED_MODULE_0__["default"].init();
 console.timeEnd('Settings Loaded');
-console.log(`PSN ID: ${_settings.psnId}`);
-// if (!_settings.psnId) {
-// console.log('authenticating with PSN...')
-// await authenticate();
-// }
+// _settings.stacks = [];
+// await _settings.save();
 _modules_settings__WEBPACK_IMPORTED_MODULE_0__._load.userBar.then(el => {
     _settings.appendSettingsMenu();
 });
@@ -4218,53 +4215,68 @@ class Game extends _psnp_util__WEBPACK_IMPORTED_MODULE_1__["default"] {
         };
     }
     /** Marks a list of `stacks` (assumes list is comprehensive) */
-    static labelStacks(freshStacks, storedStacks) {
+    static labelStacks(fetchedStacks, storedStacks) {
         /**
          * [] Get list of unique StackAbbrvs
          * [] Get list of unique platforms (to know whether platform should be included in the stack string)
          * 		- If only one unique platform
          * 		* Persona 5 is a good test case.
          */
-        // If a single game is passed, mark it as having no stacks.
-        if (freshStacks.length <= 1) {
-            freshStacks.forEach(s => (s.stack = false));
+        // // CASE 1: A single game is passed. Mark it as having no stacks.
+        if (fetchedStacks.length <= 1) {
+            fetchedStacks.forEach(s => (s.stack = false));
             return;
         }
         // First we MUST break them down by platform, since we don't want to apply a `WW` label to, say, a PS5 list that doesn't have any other PS5 stacks.
+        // CASE 2: Multiple games passed. Add `WW` to any unlabeled region stacks.
+        // STEP 0: Retroactively apply getter
+        fetchedStacks.forEach(g => {
+            if (!Object.hasOwn(g, 'platformString'))
+                Object.defineProperty(g, 'platformString', {
+                    get: function () {
+                        return this.platformList.join('/');
+                    },
+                });
+        });
+        // STEP 1: Group games by platform.
         const stacksByPlatform = {};
-        freshStacks.forEach(game => {
+        fetchedStacks.forEach(game => {
             if (!stacksByPlatform[game.platformString])
                 stacksByPlatform[game.platformString] = [game];
             else
                 stacksByPlatform[game.platformString]?.push(game);
         });
         const numPlatforms = Object.keys(stacksByPlatform).length;
-        // THEN we iterate through each platform to assess its `StackAbbr`s and relabel `this.stack` accordingly, and assign a core `stackString`
+        // STEP 2: Iterate through each platform group to assess its `StackAbbr`s and relabel `this.stack` accordingly, and assign a core `stackString`
         for (const [platform, games] of Object.entries(stacksByPlatform)) {
+            // CASE A: Only one stack for a given platform.
             if (games.length === 1) {
                 const g = games.at(0);
+                // CASE A1: `this.stack` is unlabeled. Label it as `true` to signify it's a platform stack. `this.stackString` will just be `this.platformString`
                 if (!g.stack || typeof g.stack !== 'string') {
                     g.stack = true;
                     g.stackString = g.platformString;
                 }
+                // CASE A2: `this.stack` is labeled. `this.stackString` will specify both platform AND StackAbbr. (E.G. Volume)
                 else {
                     g.stackString = g.platformString + ` (${g.stack})`;
                 }
                 continue;
             }
-            const someStackAbbrs = games.some(g => typeof g.stack === 'string');
-            // When there are duplicate platforms and at least one has a `StackAbbr`, mark any that don't as "WW"
+            // CASE B: Multiple stacks for a given platform.
+            const someStackAbbrs = games.some(g => typeof g.stack === 'string' && g.stack.length);
+            // CASE B1: At least one of these stacks has a `StackAbbr`, so mark any that don't as "WW". `this.stackString` will specify both platform AND StackAbbr.
             if (someStackAbbrs) {
                 for (const g of games) {
-                    if (!g.stack || typeof g.stack !== 'string') {
+                    if (typeof g.stack !== 'string' || !g.stack.length) {
                         g.stack = 'WW';
                     }
                     g.stackString = numPlatforms > 1 ? g.platformString + ` (${g.stack})` : g.stack;
                 }
             }
+            // CASE B2: PSNP hasn't yet labeled any of these stacks, so `this.stacksString` will just be their platform.
             else {
-                // No StackAbbrs yet, but there should be. (e.g. 2 unlabelled PS5 stacks)
-                freshStacks.forEach(s => (s.stackString = platform));
+                fetchedStacks.forEach(s => (s.stackString = platform));
             }
         }
         return;
@@ -4278,36 +4290,26 @@ class Game extends _psnp_util__WEBPACK_IMPORTED_MODULE_1__["default"] {
         // }
     }
     async updateStacks({ _settings, _page, parsedGames, lazyCheck, manual = false, }) {
-        if (this.$('.stackify'))
+        // CASE 1: Game already stackified, so do nothing.
+        if (this.$('.stackify') || parsedGames?.get(this.id))
             return;
         const stored = _settings.games.get(this.id);
         let stackData = _settings.stacks.find(x => x.games.find(g => g.id === this.id));
         let numCompleted = 0, numTotal = 0;
-        // Retroactively apply necessary getter
-        if (stackData) {
-            stackData.games.forEach(g => {
-                if (!Object.hasOwn(g, 'platformString'))
-                    Object.defineProperty(g, 'platformString', {
-                        get: function () {
-                            return this.platformList.join('/');
-                        },
-                    });
-            });
+        // CASE 2: Lazy check (WIP)
+        if (stackData && lazyCheck) {
         }
-        // CASE 1: Game already parsed from an earlier stack.
-        if (parsedGames?.get(this.id))
-            return;
-        // CASE 2: Lazy
-        else if (stackData && lazyCheck) {
-        } // CASE 3: Fetch latest stack data to update existing data.
+        // CASE 3: Fetch latest stack data to update existing data.
         else if (stackData) {
-            console.log(`${this.name} last updated ${new Date(stackData.lastUpdated)}`);
+            if (manual)
+                console.log(`${this.name} last updated ${new Date(stackData.lastUpdated)}`);
             const fetchedStacks = await fetchStacks(this.url);
             // STEP 1: Replace cached stackList with newly fetched stackList.
             stackData.games = [this, ...fetchedStacks];
             stackData.lastUpdated = Date.now();
             Game.labelStacks(stackData.games);
         }
+        // CASE 4: No stored stack data, so let's create one.
         else {
             // create stack data
             const fetchedStacks = await fetchStacks(this.url);
@@ -4348,6 +4350,7 @@ class Game extends _psnp_util__WEBPACK_IMPORTED_MODULE_1__["default"] {
             .filter(el => el.nodeName !== 'A')
             .forEach(el => el.remove());
         // const title = topRow.ch
+        /** If running via stackifyAll, append updated game to table. */
         if (parsedGames) {
             _page.gamesTableBody?.appendChild(this.el);
         }
@@ -4880,7 +4883,7 @@ class Settings {
         // If no PSN ID was loaded, try to scrape it off DOM
         if (!settings.psnId) {
             console.warn('No PSN ID loaded; checking loggedIn element...');
-            // settings.psnId = await Settings.getLoggedInPsnId();
+            settings.psnId = await Settings.getLoggedInPsnId();
         }
         // Save and return populated settings
         await settings.save();
@@ -4888,8 +4891,6 @@ class Settings {
     }
     static async getLoggedInPsnId() {
         const userBar = await _load.userBar;
-        console.log(`user bar:`);
-        console.log(userBar);
         return userBar?.textContent?.trim() ?? '';
     }
     /** Saves user settings to localStorage. */
@@ -5319,53 +5320,43 @@ function newElement(tagname, attributes, ...children) {
     });
     return el;
 }
-/**
- * Performs either a standard `fetch()` or a special `GM.xmlHttpRequest()` that bypasses CORS, depending on the passed parameters.
- * @param input URL string (`fetch()`) or _ ()
- * @param opts (Optional) `fetch()` options
- */
+/** To replace `fetchDoc()` */
 async function _fetch(input, opts) {
     try {
         if (typeof input === 'string') {
             const res = await fetch(input, opts);
-            const url = res.url;
             const doc = new DOMParser().parseFromString(await res.text(), `text/html`);
             return {
-                tm: null,
-                res,
-                url,
                 doc,
+                url: res.url,
             };
         }
         else {
-            return new Promise((resolve, reject) => {
-                const opts = {
-                    method: 'GET',
-                    ...input,
+            return new Promise(resolve => {
+                GM.xmlHttpRequest({
                     url: input.url,
+                    method: input.method ?? 'GET',
+                    context: input.context,
                     onload: res => {
-                        res.context?.after();
                         if (res.readyState === 4) {
-                            // console.log(res)
-                            // console.log(res.response)
+                            console.log(res);
+                            console.log(res.response);
+                            console.log(JSON.parse(res.response));
                             const doc = new DOMParser().parseFromString(res.responseText, 'text/html');
+                            console.log(doc);
+                            resolve({
+                                doc,
+                                url: res.finalUrl,
+                            });
                         }
-                        resolve({
-                            tm: res,
-                            res: res.response,
-                            url: res.finalUrl,
-                            doc: null,
-                        });
                     },
-                };
-                GM.xmlHttpRequest(opts);
+                });
             });
         }
     }
     catch (err) {
         console.log(`Error while fetching`);
         console.error(err);
-        return;
     }
 }
 /** Fetches a URL and returns the parsed HTML Document.
